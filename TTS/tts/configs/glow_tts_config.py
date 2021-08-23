@@ -102,13 +102,14 @@ class GlowTTSConfig(BaseTTSConfig):
     # model params
     num_chars: int = None
     encoder_type: str = "rel_pos_transformer"
-    encoder_params: dict = field(
+    model_params: dict = field(
         default_factory=lambda: {
-            "kernel_size": 3,
-            "dropout_p": 0.1,
-            "num_layers": 6,
-            "num_heads": 2,
-            "hidden_channels_ffn": 768,
+            "model_name" : "lstm",
+            "input_dim": 80,
+            "proj_dim": 256,
+            "lstm_dim": 768,
+            "num_lstm_layers": 3,
+            "use_lstm_with_projection": True
         }
     )
     use_encoder_prenet: bool = True
