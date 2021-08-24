@@ -28,7 +28,8 @@ To run the code, you need to follow the same flow as in TTS.
     - make sure that both config.json files include "model": "glow_tts",
 
 ## Generate embeddings
-- This code parses all .wav files at the given dataset path and generates a config file with a embeddings:
+- start your virtual enviroment
+- this code parses all .wav files at the given dataset path and generates a config file with a embeddings:
      ```
     python -m TTS.bin.compute_embeddings --use_cuda true \
     model/path/best_model.pth.tar \
@@ -41,7 +42,7 @@ To run the code, you need to follow the same flow as in TTS.
     /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_model_mueller91/best_model.pth.tar \
     /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_model_mueller91/config.json \
     TTS/speaker_encoder/configs/own_config.json \
-    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/embeddings/
+    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/embeddings/asvspoof_19/
     ``` -->
 
 

@@ -11,6 +11,53 @@ from tqdm import tqdm
 # DATASETS
 ########################
 
+def deepfake_datasets(root_path, meta_file):
+    """Normalize deepfake youtube dataset.
+    https://github.com/franzi-19/deepfake_datasets
+    """
+    items = []
+    with open(meta_file, "r") as file:
+        next(file) # skip header
+        for line in file:
+            line = line.strip()
+            infos = line.split(',')
+
+            if len(infos) == 10:
+                speaker, _, attack_id, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
+            elif len(infos) == 9:
+                speaker, _, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
+                attack_id = 'benign'
+            else:
+                raise AssertionError('Metadata information file is malformed. Each line should have 9 or 10 columns.')
+
+            wav_folder = os.path.join(root_path, speaker.replace(" ", "_"), url, 'wav/')
+            assert os.path.exists(wav_folder), f'Failure: Folder {wav_folder} is missing'
+            for filename in os.listdir(wav_folder):
+                items.append(['', os.path.join(wav_folder, filename),  "youtube" + attack_id])
+    return items
+
+def asvspoof_19(root_path, meta_file):
+    """Normalize asvspoof19 dataset.
+    :param root_path: path to dataset
+    :param meta_file: Path from root_path to asvspoof info file (The .txt that has locations and info of every sample)
+    """
+    items = []
+    with open(os.path.join(root_path, meta_file), 'r') as file: # TODO only meta_file? bug?
+        for line in file.readlines():
+            line = line.strip()
+            infos = line.split(' ')
+            
+            if len(infos) != 5:
+                raise AssertionError('ASVspoof information file is malformed. Each line should have 5 columns.')
+
+            _, file_name, _, attack_id, _ = infos
+
+            wav_file = os.path.join(root_path, 'flac' , file_name + '.wav')
+            assert os.path.exists(wav_file), f'Failure: File {wav_file} is missing'
+
+            items.append(["", wav_file, "ASVSPOOF19_" + attack_id]) # text, wav_file_path, label
+    return items
+
 
 def tweb(root_path, meta_file):
     """Normalize TWEB dataset.
