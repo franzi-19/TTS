@@ -29,12 +29,13 @@ To run the code, you need to follow the same flow as in TTS.
 
 ## Generate embeddings
 - start your virtual enviroment
-- this code parses all .wav files at the given dataset path and generates a config file with a embeddings:
+- make sure that your *desired dataset* is mentioned in your config.json
+- this code parses all .wav files at given dataset paths from your config and generates a json file with one embedding per found .wav file:
      ```
     python -m TTS.bin.compute_embeddings --use_cuda true \
     model/path/best_model.pth.tar \
     model/path/config.json \
-    path/to/your/own/dataset/config/config.json \
+    path/to/your/own/config/config.json \
     folder/where/to/store/the/embeddings
     ```
     <!-- ```
@@ -42,7 +43,7 @@ To run the code, you need to follow the same flow as in TTS.
     /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_model_mueller91/best_model.pth.tar \
     /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_model_mueller91/config.json \
     TTS/speaker_encoder/configs/own_config.json \
-    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/embeddings/asvspoof_19/
+    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/embeddings/youtube_dataset/
     ``` -->
 
 
@@ -50,7 +51,7 @@ To run the code, you need to follow the same flow as in TTS.
 - for python 3.9: ```pipenv install -r requirements.txt```
 - ```pipenv install ipykernel, bokeh```
 - ```jupyter notebook PlotUmapLibriTTS.ipynb``` or 'open with jupyter notebook'
-- start the notebook
+- run the notebook
 
 ## Training
 TODO

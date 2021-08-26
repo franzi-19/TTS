@@ -66,13 +66,13 @@
         //     "meta_file_val": null
         // },
         {
-            "name": "deepfake_datasets", 
+            "name": "youtube_dataset", 
             "path": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_benign/",
             "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_benign/benign.csv",
             "meta_file_val": null
         },
         {
-            "name": "deepfake_datasets", 
+            "name": "youtube_dataset", 
             "path": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_malicious/",
             "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_malicious/malicious.csv",
             "meta_file_val": null

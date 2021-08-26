@@ -11,7 +11,7 @@ from tqdm import tqdm
 # DATASETS
 ########################
 
-def deepfake_datasets(root_path, meta_file):
+def youtube_dataset(root_path, meta_file):
     """Normalize deepfake youtube dataset.
     https://github.com/franzi-19/deepfake_datasets
     """
@@ -32,8 +32,12 @@ def deepfake_datasets(root_path, meta_file):
 
             wav_folder = os.path.join(root_path, speaker.replace(" ", "_"), url, 'wav/')
             assert os.path.exists(wav_folder), f'Failure: Folder {wav_folder} is missing'
+
             for filename in os.listdir(wav_folder):
-                items.append(['', os.path.join(wav_folder, filename),  "youtube" + attack_id])
+                filepath = os.path.join(wav_folder, filename)
+                assert os.path.exists(filepath), f'Failure: File {filepath} is missing'
+
+                items.append(['', filepath,  "Youtube_" + attack_id])
     return items
 
 def asvspoof_19(root_path, meta_file):
