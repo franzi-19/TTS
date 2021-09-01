@@ -1101,6 +1101,7 @@ def process_args(args, config=None):
             # init from a file
             config = load_config(args.config_path)
         else:
+            print("No config specified, resorting to BaseTrainingConfig") 
             # init from console args
             from TTS.config.shared_configs import BaseTrainingConfig  # pylint: disable=import-outside-toplevel
 

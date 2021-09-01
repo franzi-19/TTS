@@ -1,6 +1,6 @@
 {
     "run_name": "my_run",
-    "model": "glow_tts",
+    "model": "lstm",
     "batch_size": 32,
     "eval_batch_size": 16,
     "num_loader_workers": 4,
@@ -46,13 +46,13 @@
         //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/LibriTTS/train-clean-100/",
         //     "meta_file_train": null,
         //     "meta_file_val": null
-        // }, 
-        // {
-        //     "name": "asvspoof_19", 
-        //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_train/",
-        //     "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
-        //     "meta_file_val": null
-        // },
+        // }
+        {
+            "name": "asvspoof_19", 
+            "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_train/",
+            "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
+            "meta_file_val": null
+        }//,
         // {
         //     "name": "asvspoof_19", 
         //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_dev/",
@@ -64,18 +64,18 @@
         //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_eval/",
         //     "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt",
         //     "meta_file_val": null
+        // }
+        // {
+        //     "name": "youtube_dataset", 
+        //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_benign/",
+        //     "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_benign/benign.csv",
+        //     "meta_file_val": null
         // },
-        {
-            "name": "youtube_dataset", 
-            "path": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_benign/",
-            "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_benign/benign.csv",
-            "meta_file_val": null
-        },
-        {
-            "name": "youtube_dataset", 
-            "path": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_malicious/",
-            "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_malicious/malicious.csv",
-            "meta_file_val": null
-        }
+        // {
+        //     "name": "youtube_dataset", 
+        //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_malicious/",
+        //     "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/deepfake_datasets/youtube_dataset_malicious/malicious.csv",
+        //     "meta_file_val": null
+        // }
     ]
 }

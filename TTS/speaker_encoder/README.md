@@ -21,7 +21,7 @@ To run the code, you need to follow the same flow as in TTS.
 - change to TTS: ```cd TTS```
 - for python 3.9 eg. do: ```pipenv install -r requirements.txt```
 - Download a pretrained model from [Released Models](https://github.com/mozilla/TTS/wiki/Released-Models) page
-    - eg. best_model.pth.tar and its config from https://drive.google.com/drive/folders/15oeBYf6Qn1edONkVLXe82MzdIi3O_9m3
+    - eg. best_model.pth.tar and its config from https://drive.google.com/drive/folders/15oeBYf6Qn1edONkVLXe82MzdIi3O_9m3 (currently the only one that works)
 - Download all datasets to want to create embeddings for
 - Define 'config.json' for your needs. Note that, audio parameters should match your TTS model.
     - adjust dataset paths in your own dataset config file to specify for which datasets the embeddings should be created
@@ -40,22 +40,24 @@ To run the code, you need to follow the same flow as in TTS.
     ```
     <!-- ```
     python -m TTS.bin.compute_embeddings --use_cuda true \
-    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_model_mueller91/best_model.pth.tar \
-    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_model_mueller91/config.json \
-    TTS/speaker_encoder/configs/own_config.json \
-    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/embeddings/youtube_dataset/
+    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm/train_model_lstm-August-31-2021_02+03PM-d479d32d/best_model.pth.tar \
+    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm/train_model_lstm-August-31-2021_02+03PM-d479d32d/config.json \
+    TTS/speaker_encoder/configs/own_config_to_create_embed.json \
+    /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/embeddings/asvspoof_19/own_lstm/
     ``` -->
 
 
 ## Plot the embeddings
-- for python 3.9: ```pipenv install -r requirements.txt```
+- for python 3.9: ```pipenv install -r requirements.txt``` and change to the virtual enviroment
 - ```pipenv install ipykernel, bokeh```
 - ```jupyter notebook PlotUmapLibriTTS.ipynb``` or 'open with jupyter notebook'
 - run the notebook
 
 ## Training
-TODO
+- make sure that for a model *model_name* there exists a config file *model_name_config.py* in TTS/speaker_encoder/configs
+- mention that model in your own config file with "model": "*model_name*" and the dataset you want to train with
 - Example training call:
     ```
-    python TTS/speaker_encoder/train.py --config_path speaker_encoder/config.json --data_path ~/Data/Libri-TTS/train-clean-360
+    python -m TTS.bin.train_encoder \
+    --config_path /run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/TTS/TTS/speaker_encoder/configs/own_config_to_train_model.json
     ```

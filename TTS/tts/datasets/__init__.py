@@ -30,7 +30,7 @@ def split_dataset(items):
     return items[:eval_split_size], items[eval_split_size:]
 
 
-def load_meta_data(datasets, eval_split=True):
+def load_meta_data(datasets, eval_split=True): # TODO calculate number of all speaker
     meta_data_train_all = []
     meta_data_eval_all = [] if eval_split else None
     for dataset in datasets:
@@ -42,7 +42,10 @@ def load_meta_data(datasets, eval_split=True):
         preprocessor = _get_preprocessor_by_name(name)
         # load train set
         meta_data_train = preprocessor(root_path, meta_file_train)
-        print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()}")
+        
+        from collections import Counter
+        speaker = Counter([value[2] for value in meta_data_train])
+        print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()} with {len(speaker.keys())} different speaker")
         # load evaluation split if set
         if eval_split:
             if meta_file_val:
