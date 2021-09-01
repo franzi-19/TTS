@@ -301,8 +301,11 @@ class BaseTrainingConfig(Coqpit):
     num_loader_workers: int = None
     num_eval_loader_workers: int = 0
     use_noise_augment: bool = False
+    feature_type: str = None
+    use_caching: str = False
     # paths
     output_path: str = None
+    cache_path: str = None
     # distributed
     distributed_backend: str = "nccl"
     distributed_url: str = "tcp://localhost:54321"

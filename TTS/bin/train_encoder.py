@@ -38,13 +38,16 @@ def setup_loader(ap: AudioProcessor, is_val: bool = False, verbose: bool = False
             ap,
             meta_data_eval if is_val else meta_data_train,
             voice_len=c.voice_len,
-            num_utter_per_speaker=c.num_utters_per_speaker,
+            num_utters_per_speaker=c.num_utters_per_speaker,
             num_speakers_in_batch=c.num_speakers_in_batch,
             skip_speakers=c.skip_speakers,
             storage_size=c.storage["storage_size"],
             sample_from_storage_p=c.storage["sample_from_storage_p"],
             verbose=verbose,
             augmentation_config=c.audio_augmentation,
+            cache_path=c.cache_path,
+            use_caching=c.use_caching,
+            feature_type=c.feature_type
         )
 
         # sampler = DistributedSampler(dataset) if num_gpus > 1 else None
