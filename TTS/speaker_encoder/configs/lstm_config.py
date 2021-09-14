@@ -9,15 +9,15 @@ class LstmConfig(SpeakerEncoderConfig):
             "model_name" : "lstm",
             "input_dim" : 80, 
             "proj_dim" : 256, 
-            "lstm_dim" : 768, 
-            "num_lstm_layers" : 3, 
-            "use_lstm_with_projection" : True
+            "lstm_dim" : 768,
+            "num_lstm_layers" : 3,
+            "use_lstm_with_projection" : True, 
         }
     )
 
     voice_len: int = 1 # number of seconds for each training instance
-    num_utters_per_speaker: int = 10 # number of used utterances for each speaker each batch
-    num_speakers_in_batch: int = 7 #  number of speaker in each batch
+    num_utters_per_speaker: int = 10 # 200 # number of used utterances for each speaker each batch
+    num_speakers_in_batch: int = 32 # 64 # 7 #  number of speaker in each batch
     skip_speakers: bool = True # skip speakers with samples less than "num_utters_per_speaker"
     storage: dict = field(
         default_factory=lambda:{
@@ -27,17 +27,17 @@ class LstmConfig(SpeakerEncoderConfig):
     )
 
     # training params
-    max_train_step: int = 500  # end training when number of training steps reaches this value.
-    loss: str = "ge2e"
+    max_train_step: int = 1000  # end training when number of training steps reaches this value.
+    loss: str = "angleproto" # "ge2e", "angleproto", "softmaxproto"
     lr_decay: bool = True # if true, Noam learning rate decaying is applied through training
-    warmup_steps: int =  4000 # Noam decay steps to increase the learning rate from 0 to "lr"
-    lr: int = 0.0001 # Initial learning rate. If Noam decay is active, maximum learning rate
+    warmup_steps: int =  400 # Noam decay steps to increase the learning rate from 0 to "lr"
+    lr: int = 0.01 # Initial learning rate. If Noam decay is active, maximum learning rate
     grad_clip: int = 0.0  # 0.0 meaning no gradient clipping
 
     # logging params
     steps_plot_stats: int = 10
-    print_step: int = 50
-    save_step: int = 100
+    print_step: int = 100
+    save_step: int = 500
 
     audio_augmentation: dict = field(
         default_factory=lambda:{

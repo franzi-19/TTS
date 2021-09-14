@@ -1,30 +1,75 @@
 {
-    "run_name": "train_model_lstm",
+    "run_name": "lstm_vctk_without_caching",
     "model": "lstm",
     "feature_type": "mel",
-    "output_path": "/run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm",
-    "cache_path" : "/run/media/franzi/ssd/Without_Backup/datasets/cache_TTS",
-    "use_caching": true,
-    "num_loader_workers": 1,
-    "num_eval_loader_workers": 1,
+    "output_path": "/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_vctk",
+    "cache_path" : "/opt/franzi/cache/vctk",
+    "use_caching": false, // true,
+    "num_loader_workers": 4,
+    "num_eval_loader_workers": 4,
+
+    "audio":{
+        // Audio processing parameters
+        "num_mels": 80,          // 40, size of the mel spec frame. 
+        "fft_size": 400,       // number of stft frequency levels. Size of the linear spectogram frame.
+        "sample_rate": 48000,   // DATASET-RELATED: wav sample-rate. If different than the original data, it is resampled.
+        "win_length": 400,     // stft window length in ms.
+        "hop_length": 160,      // stft window hop-lengh in ms.
+        "frame_length_ms": null,  // stft window length in ms.If null, 'win_length' is used.
+        "frame_shift_ms": null,   // stft window hop-lengh in ms. If null, 'hop_length' is used.
+        "preemphasis": 0.98,    // pre-emphasis to reduce spec noise and make it more structured. If 0.0, no -pre-emphasis.
+        "min_level_db": -100,   // normalization range
+        "ref_level_db": 20,     // reference level db, theoretically 20db is the sound of air.
+        "power": 1.5,           // value to sharpen wav signals after GL algorithm.
+        "griffin_lim_iters": 60,// #griffin-lim iterations. 30-60 is a good range. Larger the value, slower the generation.
+        // Normalization parameters
+        "signal_norm": true,    // normalize the spec values in range [0, 1]
+        "symmetric_norm": true, // move normalization to range [-1, 1]
+        "max_norm": 4.0,          // scale normalization to range [-max_norm, max_norm] or [0, max_norm]
+        "clip_norm": true,      // clip normalized values into the range.
+        "mel_fmin": 0.0,         // minimum freq level for mel-spec. ~50 for male and ~95 for female voices. Tune for dataset!!
+        "mel_fmax": 8000.0,        // maximum freq level for mel-spec. Tune for dataset!!
+        "do_trim_silence": true,  // enable trimming of slience of audio as you load it. LJspeech (false), TWEB (false), Nancy (true)
+        "trim_db": 60,          // threshold for timming silence. Set this according to your dataset.
+        "stats_path": null    // DO NOT USE WITH MULTI_SPEAKER MODEL. scaler stats file computed by 'compute_statistics.py'. If it is defined, mean-std based notmalization is used and other normalization params are ignored
+    },
+
     "datasets":[
-        {
-            "name": "asvspoof_19", 
-            "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_train/",
-            "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
-            "meta_file_val": null
-        }
+        // {
+        //     "name": "asvspoof_19", 
+        //     "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_train/",
+        //     "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
+        //     "meta_file_val": null
+        // }
         // ,{
         //     "name": "asvspoof_19", 
-        //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_dev/",
-        //     "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt",
+        //     "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_dev/",
+        //     "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt",
+        //     "meta_file_val": null
+        // }
+        // ,{
+        //     "name": "asvspoof_19", 
+        //     "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_eval/",
+        //     "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt",
+        //     "meta_file_val": null
+        // }
+        // {
+        //     "name": "youtube_dataset", 
+        //     "path": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_benign/",
+        //     "meta_file_train": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_benign/benign.csv",
         //     "meta_file_val": null
         // },
         // {
-        //     "name": "asvspoof_19", 
-        //     "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_eval/",
-        //     "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt",
+        //     "name": "youtube_dataset", 
+        //     "path": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/",
+        //     "meta_file_train": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/malicious.csv",
         //     "meta_file_val": null
         // }
+        { // 44085 files, 108 different speaker
+            "name": "vctk", 
+            "path": "/opt/franzi/datasets/VCTK-Corpus/",
+            "meta_file_train": null,
+            "meta_file_val": null
+        }
     ]
 }
