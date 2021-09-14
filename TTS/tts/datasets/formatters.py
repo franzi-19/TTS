@@ -57,6 +57,8 @@ def asvspoof_19(root_path, meta_file):
             _, file_name, _, attack_id, _ = infos
 
             wav_file = os.path.join(root_path, 'flac' , file_name + '.wav')
+            if not os.path.exists(wav_file):
+                wav_file = os.path.join(root_path, 'flac' , file_name + '.flac')
             assert os.path.exists(wav_file), f'Failure: File {wav_file} is missing'
 
             items.append(["", wav_file, "ASVSPOOF19_" + attack_id]) # text, wav_file_path, label
