@@ -10,8 +10,8 @@
     "datasets":[
         {
             "name": "asvspoof_19", 
-            "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_train/",
-            "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
+            "path": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_original/LA/ASVspoof2019_LA_train/",
+            "meta_file_train": "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_original/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
             "meta_file_val": null
         }
         // ,{

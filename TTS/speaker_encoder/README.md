@@ -19,7 +19,7 @@ To run the code, you need to follow the same flow as in TTS.
 # How to generate embeddings
 ## Set it up
 - change to TTS: ```cd TTS```
-- for python 3.9 eg. do: ```pipenv install -r requirements.txt```
+- for python 3.9 create and start a virtual enviroment eg. with: ```pipenv install -r requirements.txt```
 - Download a pretrained model from [Released Models](https://github.com/mozilla/TTS/wiki/Released-Models) page
     - eg. best_model.pth.tar and its config from https://drive.google.com/drive/folders/15oeBYf6Qn1edONkVLXe82MzdIi3O_9m3 (currently the only one that works)
 - Download all datasets to want to create embeddings for
