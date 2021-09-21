@@ -71,7 +71,8 @@ def train(model, criterion, optimizer, scheduler, ap, global_step):
         start_time = time.time()
 
         # setup input data
-        inputs = data[0]
+        inputs = data[0] # [500, 161, 40]
+        labels = data[1]
         loader_time = time.time() - end_time
         global_step += 1
 
@@ -86,14 +87,18 @@ def train(model, criterion, optimizer, scheduler, ap, global_step):
             # labels = labels.cuda(non_blocking=True)
 
         # forward pass model
-        outputs = model(inputs)
+        outputs = model(inputs) # [500, 256]
 
+        x=outputs.view(c.num_speakers_in_batch,outputs.shape[0] // c.num_speakers_in_batch, -1) #[5,100, 256]
         # loss computation
         loss = criterion(
             outputs.view(c.num_speakers_in_batch,
                          outputs.shape[0] // c.num_speakers_in_batch, -1))
         loss.backward()
-        grad_norm, _ = check_update(model, c.grad_clip)
+
+        grad_norm, skip_flag = check_update(model, c.grad_clip)
+        if skip_flag: continue # TODO test
+
         optimizer.step()
 
         step_time = time.time() - start_time
@@ -116,23 +121,23 @@ def train(model, criterion, optimizer, scheduler, ap, global_step):
                 "avg_loader_time": avg_loader_time
             }
             tb_logger.tb_train_epoch_stats(global_step, train_stats)
+            y=outputs.detach().cpu().numpy(), #[500, 256]
             figures = {
-                # FIXME: not constant
                 "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                             10),
+                                             c.num_utters_per_speaker, labels),
             }
             tb_logger.tb_train_figures(global_step, figures)
 
         if global_step % c.print_step == 0:
             print(
-                "   | > Step:{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
+                "   | > Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
                 "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
-                    global_step, loss.item(), avg_loss, grad_norm, step_time,
+                    global_step, c.num_speakers_in_batch * c.epochs * c.num_utters_per_speaker, loss.item(), avg_loss, grad_norm, step_time,
                     loader_time, avg_loader_time, current_lr),
                 flush=True)
 
         # save best model
-        best_loss = save_best_model(model, optimizer, avg_loss, best_loss,
+        best_loss = save_best_model(model, optimizer, criterion, avg_loss, best_loss,
                                     OUT_PATH, global_step)
 
         end_time = time.time()

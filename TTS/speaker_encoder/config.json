@@ -1,7 +1,7 @@
 
 {
-    "run_name": "mueller91",
-    "run_description": "train speaker encoder with voxceleb1, voxceleb2 and libriSpeech ",
+    "run_name": "lstm_mueller91_plot_fixed",
+    "run_description": "train speaker encoder with asvspoof_19",
     "audio":{
         // Audio processing parameters
         "num_mels": 40,         // size of the mel spec frame. 
@@ -29,20 +29,20 @@
     "reinit_layers": [],
     "loss": "angleproto", // "ge2e" to use Generalized End-to-End loss and "angleproto" to use Angular Prototypical loss (new SOTA)
     "grad_clip": 3.0, // upper limit for gradients for clipping.
-    "epochs": 1000, // total number of epochs to train.
+    "epochs": 1, // total number of epochs to train. -> max step = epochs * num_speakers_in_batch * num_utters_per_speaker
     "lr": 0.0001, // Initial learning rate. If Noam decay is active, maximum learning rate.
     "lr_decay": false, // if true, Noam learning rate decaying is applied through training.
     "warmup_steps": 4000, // Noam decay steps to increase the learning rate from 0 to "lr"
     "tb_model_param_stats": false, // true, plots param stats per layer on tensorboard. Might be memory consuming, but good for debugging. 
-    "steps_plot_stats": 10, // number of steps to plot embeddings.
-    "num_speakers_in_batch": 64, // Batch size for training. Lower values than 32 might cause hard to learn attention. It is overwritten by 'gradual_training'.
-    "num_utters_per_speaker": 10,  //
-    "num_loader_workers": 8,        // number of training data loader processes. Don't set it too big. 4-8 are good values.
+    "steps_plot_stats": 1, // 10, number of steps to plot embeddings.
+    "num_speakers_in_batch": 10, // YT: 5, vctk: 64 // Batch size for training. Lower values than 32 might cause hard to learn attention. It is overwritten by 'gradual_training'.
+    "num_utters_per_speaker": 50, // YT: 100, vctk: 10
+    "num_loader_workers": 4, // number of training data loader processes. Don't set it too big. 4-8 are good values.
     "wd": 0.000001, // Weight decay weight.
     "checkpoint": true, // If true, it saves checkpoints per "save_step"
-    "save_step": 1000, // Number of training steps expected to save traning stats and checkpoints.
+    "save_step": 500, // Number of training steps expected to save traning stats and checkpoints.
     "print_step": 20, // Number of steps to log traning on console.
-    "output_path": "../../MozillaTTSOutput/checkpoints/voxceleb_librispeech/speaker_encoder/", // DATASET-RELATED: output path for all training outputs.
+    "output_path": "/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/", //"../../MozillaTTSOutput/checkpoints/voxceleb_librispeech/speaker_encoder/", // DATASET-RELATED: output path for all training outputs.
     "model": {
         "input_dim": 40,
         "proj_dim": 256,
@@ -57,47 +57,41 @@
     },
     "datasets": 
         [
+            // {
+            //     "name": "vctk",
+            //     "path": "/opt/franzi/datasets/VCTK-Corpus/",
+            //     "meta_file_train": null,
+            //     "meta_file_val": null
+            // }
+            // {
+            //     "name": "youtube_dataset", 
+            //     "path": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_benign/",
+            //     "meta_file_train": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_benign/benign.csv",
+            //     "meta_file_val": null
+            // },
+            // {
+            //     "name": "youtube_dataset", 
+            //     "path": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/",
+            //     "meta_file_train": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/malicious.csv",
+            //     "meta_file_val": null
+            // }
             {
-                "name": "vctk_slim",
-                "path": "../../../audio-datasets/en/VCTK-Corpus/",
-                "meta_file_train": null,
+                "name": "asvspoof_19", 
+                "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_train/",
+                "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
                 "meta_file_val": null
-            },
-            {
-                "name": "libri_tts",
-                "path": "../../../audio-datasets/en/LibriTTS/train-clean-100",
-                "meta_file_train": null,
+            }
+            ,{
+                "name": "asvspoof_19", 
+                "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_dev/",
+                "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt",
                 "meta_file_val": null
-            },
-            {
-                "name": "libri_tts",
-                "path": "../../../audio-datasets/en/LibriTTS/train-clean-360",
-                "meta_file_train": null,
+            }
+            ,{
+                "name": "asvspoof_19", 
+                "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_eval/",
+                "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt",
                 "meta_file_val": null
-            },
-            {
-                "name": "libri_tts",
-                "path": "../../../audio-datasets/en/LibriTTS/train-other-500",
-                "meta_file_train": null,
-                "meta_file_val": null
-            },
-            {
-                "name": "voxceleb1",
-                "path": "../../../audio-datasets/en/voxceleb1/",
-                "meta_file_train": null,
-                "meta_file_val": null
-            },
-            {
-                "name": "voxceleb2",
-                "path": "../../../audio-datasets/en/voxceleb2/",
-                "meta_file_train": null,
-                "meta_file_val": null
-            },
-            {
-                "name": "common_voice",
-                "path": "../../../audio-datasets/en/MozillaCommonVoice",
-                "meta_file_train": "train.tsv",
-                "meta_file_val": "test.tsv"
             }
         ]
 }
