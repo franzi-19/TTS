@@ -3,7 +3,10 @@ import torch
 import torch.nn as nn
 
 from TTS.utils.io import load_fsspec
-
+# TODO ImportError: cannot import name 'setup_model' from partially initialized module 
+# 'TTS.speaker_encoder.utils.generic_utils' (most likely due to a circular import) 
+# (/run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/TTS/TTS/speaker_encoder/utils/generic_utils.py)
+# from TTS.speaker_encoder.configs.resnet_config import ResnetConfig 
 
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=8):
@@ -56,14 +59,14 @@ class SEBasicBlock(nn.Module):
         return out
 
 
-class ResNetSpeakerEncoder(nn.Module):
+class ResNetSpeakerEncoder(nn.Module): # 8.028.492 parameters
     """Implementation of the model H/ASP without batch normalization in speaker embedding. This model was proposed in: https://arxiv.org/abs/2009.14153
     Adapted from: https://github.com/clovaai/voxceleb_trainer
     """
 
     # pylint: disable=W0102
     def __init__(
-        self,
+        self, #config: ResnetConfig,
         input_dim=64,
         proj_dim=512,
         layers=[3, 4, 6, 3],
@@ -72,40 +75,49 @@ class ResNetSpeakerEncoder(nn.Module):
         log_input=False,
     ):
         super(ResNetSpeakerEncoder, self).__init__()
+        # super().__init__()
+
+        # self.config = config
+        # for key in config:
+        #     setattr(self, key, config[key])
 
         self.encoder_type = encoder_type
         self.input_dim = input_dim
         self.log_input = log_input
-        self.conv1 = nn.Conv2d(1, num_filters[0], kernel_size=3, stride=1, padding=1)
+        self.num_filters = num_filters
+        self.proj_dim = proj_dim
+        self.layers = layers
+
+        self.conv1 = nn.Conv2d(1, self.num_filters[0], kernel_size=3, stride=1, padding=1)
         self.relu = nn.ReLU(inplace=True)
-        self.bn1 = nn.BatchNorm2d(num_filters[0])
+        self.bn1 = nn.BatchNorm2d(self.num_filters[0])
 
-        self.inplanes = num_filters[0]
-        self.layer1 = self.create_layer(SEBasicBlock, num_filters[0], layers[0])
-        self.layer2 = self.create_layer(SEBasicBlock, num_filters[1], layers[1], stride=(2, 2))
-        self.layer3 = self.create_layer(SEBasicBlock, num_filters[2], layers[2], stride=(2, 2))
-        self.layer4 = self.create_layer(SEBasicBlock, num_filters[3], layers[3], stride=(2, 2))
+        self.inplanes = self.num_filters[0]
+        self.layer1 = self.create_layer(SEBasicBlock, self.num_filters[0], self.layers[0])
+        self.layer2 = self.create_layer(SEBasicBlock, self.num_filters[1], self.layers[1], stride=(2, 2))
+        self.layer3 = self.create_layer(SEBasicBlock, self.num_filters[2], self.layers[2], stride=(2, 2))
+        self.layer4 = self.create_layer(SEBasicBlock, self.num_filters[3], self.layers[3], stride=(2, 2))
 
-        self.instancenorm = nn.InstanceNorm1d(input_dim)
+        self.instancenorm = nn.InstanceNorm1d(self.input_dim)
 
         outmap_size = int(self.input_dim / 8)
 
         self.attention = nn.Sequential(
-            nn.Conv1d(num_filters[3] * outmap_size, 128, kernel_size=1),
+            nn.Conv1d(self.num_filters[3] * outmap_size, 128, kernel_size=1),
             nn.ReLU(),
             nn.BatchNorm1d(128),
-            nn.Conv1d(128, num_filters[3] * outmap_size, kernel_size=1),
+            nn.Conv1d(128, self.num_filters[3] * outmap_size, kernel_size=1),
             nn.Softmax(dim=2),
         )
 
         if self.encoder_type == "SAP":
-            out_dim = num_filters[3] * outmap_size
+            out_dim = self.num_filters[3] * outmap_size
         elif self.encoder_type == "ASP":
-            out_dim = num_filters[3] * outmap_size * 2
+            out_dim = self.num_filters[3] * outmap_size * 2
         else:
             raise ValueError("Undefined encoder")
 
-        self.fc = nn.Linear(out_dim, proj_dim)
+        self.fc = nn.Linear(out_dim, self.proj_dim)
 
         self._init_layers()
 
@@ -140,21 +152,24 @@ class ResNetSpeakerEncoder(nn.Module):
         return out
 
     def forward(self, x, l2_norm=False):
-        x = x.transpose(1, 2)
+        print(x.shape) # 20, 173, 80
+        x = x.transpose(1, 2) # 20, 80, 173
         with torch.no_grad():
             with torch.cuda.amp.autocast(enabled=False):
                 if self.log_input:
                     x = (x + 1e-6).log()
-                x = self.instancenorm(x).unsqueeze(1)
+                x = self.instancenorm(x).unsqueeze(1) # 20, 1, 80, 173
 
-        x = self.conv1(x)
+        x = self.conv1(x) 
         x = self.relu(x)
         x = self.bn1(x)
 
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        x = self.layer4(x)
+        print(x.shape) # 20, 128, 20, 44
+        x = self.layer4(x) # TODO 
+        print(x.shape)
 
         x = x.reshape(x.size()[0], -1, x.size()[-1])
 
