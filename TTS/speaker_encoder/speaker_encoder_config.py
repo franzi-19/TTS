@@ -62,4 +62,4 @@ class SpeakerEncoderConfig(BaseTrainingConfig):
         c = asdict(self)
         assert (
             c["model_params"]["input_dim"] == self.audio.num_mels
-        ), " [!] model input dimendion must be equal to melspectrogram dimension."
+        ), f' [!] model input dimendion must be equal to melspectrogram dimension: {c["model_params"]["input_dim"]} == {self.audio.num_mels}'

@@ -177,6 +177,7 @@ def setup_model(c):
             c.model_params["proj_dim"],
             c.model_params["lstm_dim"],
             c.model_params["num_lstm_layers"],
+            c.model_params["use_lstm_with_projection"]
         )
     elif c.model_params["model_name"].lower() == "resnet":
         model = ResNetSpeakerEncoder(input_dim=c.model_params["input_dim"], proj_dim=c.model_params["proj_dim"])

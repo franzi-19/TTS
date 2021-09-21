@@ -32,8 +32,9 @@ class LSTMWithoutProjection(nn.Module):
         return self.relu(self.linear(hidden[-1]))
 
 
-class LSTMSpeakerEncoder(nn.Module): # 9.504.768 parameters
+class LSTMSpeakerEncoder(nn.Module):
     def __init__(self, input_dim, proj_dim=256, lstm_dim=768, num_lstm_layers=3, use_lstm_with_projection=True):
+        print(f'> Setting up LSTM')
         super().__init__()
         self.use_lstm_with_projection = use_lstm_with_projection
         layers = []
@@ -46,6 +47,11 @@ class LSTMSpeakerEncoder(nn.Module): # 9.504.768 parameters
         else:
             self.layers = LSTMWithoutProjection(input_dim, lstm_dim, proj_dim, num_lstm_layers)
 
+        print(f' | > input_dim: {input_dim}')
+        print(f' | > proj_dim: {proj_dim}')
+        print(f' | > lstm_dim: {lstm_dim}')
+        print(f' | > num_lstm_layers: {num_lstm_layers}')
+        print(f' | > use_lstm_with_projection: {use_lstm_with_projection}')
         self._init_layers()
 
     def _init_layers(self):
