@@ -22,7 +22,7 @@ def check_config_speaker_encoder(c):
     # training parameters
     check_argument('loss', c, enum_list=['ge2e', 'angleproto'], restricted=True, val_type=str)
     check_argument('grad_clip', c, restricted=True, val_type=float)
-    check_argument('epochs', c, restricted=True, val_type=int, min_val=1)
+    check_argument('max_steps', c, restricted=True, val_type=int, min_val=0)
     check_argument('lr', c, restricted=True, val_type=float, min_val=0)
     check_argument('lr_decay', c, restricted=True, val_type=bool)
     check_argument('warmup_steps', c, restricted=True, val_type=int, min_val=0)
@@ -33,8 +33,8 @@ def check_config_speaker_encoder(c):
 
     # checkpoint and output parameters
     check_argument('steps_plot_stats', c, restricted=True, val_type=int)
-    check_argument('checkpoint', c, restricted=True, val_type=bool)
-    check_argument('save_step', c, restricted=True, val_type=int)
+    # check_argument('checkpoint', c, restricted=True, val_type=bool)
+    # check_argument('save_step', c, restricted=True, val_type=int)
     check_argument('print_step', c, restricted=True, val_type=int)
     check_argument('output_path', c, restricted=True, val_type=str)
 

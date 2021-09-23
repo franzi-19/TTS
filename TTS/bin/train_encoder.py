@@ -59,7 +59,7 @@ def setup_loader(ap, is_val=False, verbose=False):
     return loader
 
 
-def train(model, criterion, optimizer, scheduler, ap, global_step):
+def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps):
     data_loader = setup_loader(ap, is_val=False, verbose=True)
     model.train()
     epoch_time = 0
@@ -68,6 +68,9 @@ def train(model, criterion, optimizer, scheduler, ap, global_step):
     avg_loader_time = 0
     end_time = time.time()
     for _, data in enumerate(data_loader):
+        if global_step >= max_steps and max_steps != 0:
+            break
+
         start_time = time.time()
 
         # setup input data
@@ -111,30 +114,8 @@ def train(model, criterion, optimizer, scheduler, ap, global_step):
                           (c.num_loader_workers-1) / c.num_loader_workers * avg_loader_time if avg_loader_time != 0 else loader_time
         current_lr = optimizer.param_groups[0]['lr']
 
-        if global_step % c.steps_plot_stats == 0:
-            # Plot Training Epoch Stats
-            train_stats = {
-                "loss": avg_loss,
-                "lr": current_lr,
-                "grad_norm": grad_norm,
-                "step_time": step_time,
-                "avg_loader_time": avg_loader_time
-            }
-            tb_logger.tb_train_epoch_stats(global_step, train_stats)
-            y=outputs.detach().cpu().numpy(), #[500, 256]
-            figures = {
-                "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                             c.num_utters_per_speaker, labels),
-            }
-            tb_logger.tb_train_figures(global_step, figures)
-
-        if global_step % c.print_step == 0:
-            print(
-                "   | > Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
-                "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
-                    global_step, c.num_speakers_in_batch * c.epochs * c.num_utters_per_speaker, loss.item(), avg_loss, grad_norm, step_time,
-                    loader_time, avg_loader_time, current_lr),
-                flush=True)
+        _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, current_lr, grad_norm, step_time, avg_loader_time)
+        _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps)
 
         # save best model
         best_loss = save_best_model(model, optimizer, criterion, avg_loss, best_loss,
@@ -143,6 +124,31 @@ def train(model, criterion, optimizer, scheduler, ap, global_step):
         end_time = time.time()
     return avg_loss, global_step
 
+def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, current_lr, grad_norm, step_time, avg_loader_time):
+    if global_step % c.steps_plot_stats == 0:
+        train_stats = {
+            "loss": avg_loss,
+            "lr": current_lr,
+            "grad_norm": grad_norm,
+            "step_time": step_time,
+            "avg_loader_time": avg_loader_time
+        }
+        tb_logger.tb_train_epoch_stats(global_step, train_stats)
+        figures = {
+            "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
+                                            c.num_utters_per_speaker, labels),
+        }
+        tb_logger.tb_train_figures(global_step, figures)
+
+def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps):
+    if global_step % c.print_step == 0:
+        if max_steps == 0: max_steps = 'Infinity'
+        print(
+            "   | > Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
+            "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
+                global_step, max_steps, loss.item(), avg_loss, grad_norm, step_time,
+                loader_time, avg_loader_time, current_lr),
+            flush=True)
 
 def main(args):  # pylint: disable=redefined-outer-name
     # pylint: disable=global-variable-undefined
@@ -205,7 +211,7 @@ def main(args):  # pylint: disable=redefined-outer-name
 
     global_step = args.restore_step
     _, global_step = train(model, criterion, optimizer, scheduler, ap,
-                           global_step)
+                           global_step, c.max_steps)
 
 
 if __name__ == '__main__':
