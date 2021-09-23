@@ -28,8 +28,8 @@ colormap = (
     / 255
 )
 
-
-def plot_embeddings(embeddings, num_utter_per_speaker, labels, max_speaker=10, max_utter=10): # [500, 256]
+# assumption for embeddings: points for each speaker of length num_utter_per_speaker lined up, one speaker after another
+def plot_embeddings(embeddings, num_utter_per_speaker, labels, max_speaker=10, max_utter=10): 
     embeddings = embeddings.reshape(embeddings.shape[0] // num_utter_per_speaker, num_utter_per_speaker, -1)
     num_utter_per_speaker = min(num_utter_per_speaker, max_utter)
     embeddings = embeddings[: max_speaker, : max_utter].reshape(-1, embeddings.shape[-1])
@@ -42,9 +42,12 @@ def plot_embeddings(embeddings, num_utter_per_speaker, labels, max_speaker=10, m
     colors = [colormap[i] for i in ground_truth]
 
     fig, ax = plt.subplots(figsize=(16, 10))
-    scatter = ax.scatter(projection[:, 0], projection[:, 1], c=colors)
-    x=np.array(labels)[:,0].tolist()
-    ax.legend(labels=np.array(labels)[:,0].tolist(), loc="upper right", title="Classes")  
+    for i in range(num_speakers):
+        points = projection[num_utter_per_speaker*i:num_utter_per_speaker*(i+1)]
+        ax.scatter(points[:,0], points[:,1], color=colormap[i], label=np.array(labels)[:,0][i])
+        
+    ax.legend()
+
     plt.gca().set_aspect("equal", "datalim")
     plt.title("UMAP projection")
     plt.tight_layout()
