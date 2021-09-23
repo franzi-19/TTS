@@ -32,14 +32,14 @@ class MyDataset(Dataset):
         self.sample_from_storage_p = float(sample_from_storage_p)
         self.additive_noise = float(additive_noise)
         if self.verbose:
-            print("\n > DataLoader initialization")
+            print("\n > DataLoader Initialization")
             print(f" | > Speakers per Batch: {num_speakers_in_batch}")
+            print(f" | > Number of found Speakers: {len(self.speakers)}")
             print(f" | > Storage Size: {self.storage.maxsize} speakers, each with {num_utter_per_speaker} utters")
             print(f" | > Sample_from_storage_p : {self.sample_from_storage_p}")
             print(f" | > Noise added : {self.additive_noise}")
-            print(f" | > Number of instances : {len(self.items)}")
-            print(f" | > Sequence length: {self.seq_len}")
-            print(f" | > Num speakers: {len(self.speakers)}")
+            print(f" | > Number of Instances : {len(self.items)}")
+            print(f" | > Sequence Length: {self.seq_len} \n")
 
     def load_wav(self, filename):
         audio = self.ap.load_wav(filename, sr=self.ap.sample_rate)

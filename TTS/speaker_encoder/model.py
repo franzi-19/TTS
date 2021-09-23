@@ -45,6 +45,13 @@ class SpeakerEncoder(nn.Module):
 
         self._init_layers()
 
+        print("\n > SpeakerEncoder Initialization: LSTM")
+        print(f" | > Input Dimension: {input_dim}")
+        print(f" | > Projection Dimension: {proj_dim}")
+        print(f" | > Hidden Dimension: {lstm_dim}")
+        print(f" | > Number of LSTM Layer: {num_lstm_layers}")
+        print(f" | > Use Projection: {use_lstm_with_projection} \n")
+
     def _init_layers(self):
         for name, param in self.layers.named_parameters():
             if "bias" in name:

@@ -144,7 +144,7 @@ def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, load
     if global_step % c.print_step == 0:
         if max_steps == 0: max_steps = 'Infinity'
         print(
-            "   | > Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
+            " > Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
             "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
                 global_step, max_steps, loss.item(), avg_loss, grad_norm, step_time,
                 loader_time, avg_loader_time, current_lr),
@@ -159,7 +159,8 @@ def main(args):  # pylint: disable=redefined-outer-name
     model = SpeakerEncoder(input_dim=c.model['input_dim'],
                            proj_dim=c.model['proj_dim'],
                            lstm_dim=c.model['lstm_dim'],
-                           num_lstm_layers=c.model['num_lstm_layers'])
+                           num_lstm_layers=c.model['num_lstm_layers'],
+                           use_lstm_with_projection=c.model['use_lstm_with_projection'])
     optimizer = RAdam(model.parameters(), lr=c.lr)
 
     if c.loss == "ge2e":
@@ -179,7 +180,7 @@ def main(args):  # pylint: disable=redefined-outer-name
                 raise RuntimeError
             model.load_state_dict(checkpoint['model'])
         except KeyError:
-            print(" > Partial model initialization.")
+            print(" > Partial model Initialization.")
             model_dict = model.state_dict()
             model_dict = set_init_dict(model_dict, checkpoint, c)
             model.load_state_dict(model_dict)

@@ -37,7 +37,6 @@ def plot_embeddings(embeddings, num_utter_per_speaker, labels, max_speaker=10, m
     model = umap.UMAP()
     projection = model.fit_transform(embeddings) #[x, 2]
     num_speakers = embeddings.shape[0] // num_utter_per_speaker
-    print(f'will plot {num_speakers} speakers with {num_utter_per_speaker} utterances each')
     ground_truth = np.repeat(np.arange(num_speakers), num_utter_per_speaker) # [100], [0,0,0,...,1,1,1,...]
     colors = [colormap[i] for i in ground_truth]
 
