@@ -24,14 +24,23 @@
         "mel_fmin": 0.0,         // minimum freq level for mel-spec. ~50 for male and ~95 for female voices. Tune for dataset!!
         "mel_fmax": 8000.0,        // maximum freq level for mel-spec. Tune for dataset!!
         "do_trim_silence": true,  // enable trimming of slience of audio as you load it. LJspeech (false), TWEB (false), Nancy (true)
-        "trim_db": 60          // threshold for timming silence. Set this according to your dataset.
+        "trim_db": 60,          // threshold for timming silence. Set this according to your dataset.
+        "do_sound_norm": false  // apply normalization
     },
+    
+    "dataset":{
+        "num_speakers_in_batch": 5, // YT: 5, vctk: 64 // Batch size for training. Lower values than 32 might cause hard to learn attention. It is overwritten by 'gradual_training'.
+        "num_utters_per_speaker": 50, // YT: 100, vctk: 10
+        "feature_type": "mfcc", // mfcc, raw // type of feature used for training
+        "voice_len": 1.6,  // size of used subset utterance: voice_len * sample_rate
+        "skip_speakers": false // skip speaker if they have less than 'num_utter_per_speaker' utterances
+    },
+
     "max_steps": 1, // total number of steps to train, if == 0, it runs without a stopping criterion (-> 10000000000 steps)
     "print_step": 1, // 20, Number of steps to log traning on console.
     "steps_plot_stats": 1, // 10, number of steps to plot embeddings.
-    "num_speakers_in_batch": 5, // YT: 5, vctk: 64 // Batch size for training. Lower values than 32 might cause hard to learn attention. It is overwritten by 'gradual_training'.
-    "num_utters_per_speaker": 50, // YT: 100, vctk: 10
     "num_loader_workers": 4, // number of training data loader processes. Don't set it too big. 4-8 are good values.
+
     "reinit_layers": [],
     "loss": "angleproto", // "ge2e" to use Generalized End-to-End loss and "angleproto" to use Angular Prototypical loss (new SOTA)
     "grad_clip": 3.0, // upper limit for gradients for clipping.
@@ -42,7 +51,8 @@
     "wd": 0.000001, // Weight decay weight.
     // "checkpoint": true, // If true, it saves checkpoints per "save_step"
     // "save_step": 500, // Number of training steps expected to save traning stats and checkpoints.
-    "output_path": "/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/", // "/run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm_test",  output path for all training outputs.
+    "output_path": "/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/", // "/run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm_test",  // output path for all training outputs.
+    
     "model": {
         "input_dim": 40,
         "proj_dim": 256,
@@ -77,7 +87,7 @@
             // }
             {
                 "name": "asvspoof_19", 
-                "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_train/", //"/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_train",
+                "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_train/", // "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_train",
                 "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt", // "/run/media/franzi/ssd/Without_Backup/datasets/ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
                 "meta_file_val": null
             }

@@ -18,6 +18,7 @@ def check_config_speaker_encoder(c):
     check_argument('ref_level_db', c['audio'], restricted=True, val_type=int, min_val=0, max_val=1000)
     check_argument('power', c['audio'], restricted=True, val_type=float, min_val=1, max_val=5)
     check_argument('griffin_lim_iters', c['audio'], restricted=True, val_type=int, min_val=10, max_val=1000)
+    check_argument('do_sound_norm', c['audio'], restricted=True, val_type=bool)
 
     # training parameters
     check_argument('loss', c, enum_list=['ge2e', 'angleproto'], restricted=True, val_type=str)
@@ -27,9 +28,17 @@ def check_config_speaker_encoder(c):
     check_argument('lr_decay', c, restricted=True, val_type=bool)
     check_argument('warmup_steps', c, restricted=True, val_type=int, min_val=0)
     check_argument('tb_model_param_stats', c, restricted=True, val_type=bool)
-    check_argument('num_speakers_in_batch', c, restricted=True, val_type=int)
+    
     check_argument('num_loader_workers', c, restricted=True, val_type=int)
     check_argument('wd', c, restricted=True, val_type=float, min_val=0.0, max_val=1.0)
+
+    # dataset parameter
+    check_argument('dataset', c, restricted=True, val_type=dict)
+    check_argument('num_speakers_in_batch', c['dataset'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_utters_per_speaker', c['dataset'], restricted=True, val_type=int, min_val=1)
+    check_argument('feature_type', c['dataset'], enum_list=['mfcc', 'raw'], restricted=True, val_type=str)
+    check_argument('voice_len', c['dataset'], restricted=True, val_type=float, min_val=0.1)
+    check_argument('skip_speakers', c['dataset'], restricted=True, val_type=bool)
 
     # checkpoint and output parameters
     check_argument('steps_plot_stats', c, restricted=True, val_type=int)
@@ -52,7 +61,7 @@ def check_config_speaker_encoder(c):
     check_argument('storage_size', c['storage'], restricted=True, val_type=int, min_val=1, max_val=100)
     check_argument('additive_noise', c['storage'], restricted=True, val_type=float, min_val=0.0, max_val=1.0)
 
-    # datasets - checking only the first entry
+    # training datasets - checking only the first entry
     check_argument('datasets', c, restricted=True, val_type=list)
     for dataset_entry in c['datasets']:
         check_argument('name', dataset_entry, restricted=True, val_type=str)

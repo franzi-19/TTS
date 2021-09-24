@@ -10,7 +10,7 @@ from tqdm import tqdm
 class MyDataset(Dataset):
     def __init__(self, ap, meta_data, voice_len=1.6, num_speakers_in_batch=64,
                  storage_size=1, sample_from_storage_p=0.5, additive_noise=0,
-                 num_utter_per_speaker=10, skip_speakers=False, verbose=False):
+                 num_utter_per_speaker=10, skip_speakers=False, feature_type='mfcc', verbose=False):
         """
         Args:
             ap (TTS.tts.utils.AudioProcessor): audio processor object.
@@ -18,13 +18,14 @@ class MyDataset(Dataset):
             seq_len (int): voice segment length in seconds.
             verbose (bool): print diagnostic information.
         """
-        self.items = meta_data
+        self.items = meta_data # items from preprocess functions
         self.sample_rate = ap.sample_rate
         self.voice_len = voice_len
         self.seq_len = int(voice_len * self.sample_rate)
         self.num_speakers_in_batch = num_speakers_in_batch
         self.num_utter_per_speaker = num_utter_per_speaker
         self.skip_speakers = skip_speakers
+        self.feature_type = feature_type
         self.ap = ap
         self.verbose = verbose
         self.__parse_items()
@@ -45,6 +46,7 @@ class MyDataset(Dataset):
         audio = self.ap.load_wav(filename, sr=self.ap.sample_rate)
         return audio
 
+    # not used
     def load_data(self, idx):
         text, wav_file, speaker_name = self.items[idx]
         wav = np.asarray(self.load_wav(wav_file), dtype=np.float32)
@@ -62,6 +64,9 @@ class MyDataset(Dataset):
         return sample
 
     def __parse_items(self):
+        """
+        matches speaker with their utterances for self.speaker_to_utters
+        """
         self.speaker_to_utters = {}
         for i in self.items:
             path_ = i[1]
@@ -95,48 +100,85 @@ class MyDataset(Dataset):
     #             self.speaker_to_utters[speaker] = speaker_utters
 
     def __len__(self):
+        """
+        return large number to avoid reaching the end of the dataset
+        """
         return int(1e10)
 
     def __sample_speaker(self):
+        """
+        returns a random speaker (with some of their utterances)
+        """
         speaker = random.sample(self.speakers, 1)[0]
-        if self.num_utter_per_speaker > len(self.speaker_to_utters[speaker]):
-            utters = random.choices(
-                self.speaker_to_utters[speaker], k=self.num_utter_per_speaker
-            )
-        else:
-            utters = random.sample(
-                self.speaker_to_utters[speaker], self.num_utter_per_speaker
-            )
-        return speaker, utters
+        # not used
+        # if self.num_utter_per_speaker > len(self.speaker_to_utters[speaker]):
+        #     utters = random.choices(
+        #         self.speaker_to_utters[speaker], k=self.num_utter_per_speaker
+        #     )
+        # else:
+        #     utters = random.sample(
+        #         self.speaker_to_utters[speaker], self.num_utter_per_speaker
+        #     )
+        return speaker #, utters
 
-    def __sample_speaker_utterances(self, speaker):
+    def __sample_wavs(self, speaker):
         """
-        Sample all M utterances for the given speaker.
+        returns list of wavs of length 'num_utter_per_speaker', labels = speaker
+        if speaker has not enough utterances another speaker will be sampled
         """
+        count = 0
         wavs = []
         labels = []
-        for _ in range(self.num_utter_per_speaker):
-            # TODO:dummy but works
-            while True:
-                if len(self.speaker_to_utters[speaker]) > 0:
-                    utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
-                else:
-                    self.speakers.remove(speaker)
-                    speaker, _ = self.__sample_speaker()
-                    continue
-                wav = self.load_wav(utter)
-                if wav.shape[0] - self.seq_len > 0:
-                    break
+        while count < self.num_utter_per_speaker:
+            utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
+            wav = self.load_wav(utter)
+
+            if wav.shape[0] - self.seq_len > 0: # wav is long enough
+                count += 1
+            else: # remove too short utterances, if no utterances left draw another speaker
                 self.speaker_to_utters[speaker].remove(utter)
+                if len(self.speaker_to_utters[speaker]) == 0:
+                    self.speakers.remove(speaker)
+                    speaker = self.__sample_speaker()
+                continue
 
             wavs.append(wav)
             labels.append(speaker)
         return wavs, labels
+            
 
+    # def __sample_speaker_utterances(self, speaker):
+    #     """
+    #     Sample all M utterances for the given speaker.
+    #     """
+    #     wavs = []
+    #     labels = []
+    #     for _ in range(self.num_utter_per_speaker):
+    #         # TODO:dummy but works
+    #         while True:
+    #             if len(self.speaker_to_utters[speaker]) > 0:
+    #                 utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
+    #             else:
+    #                 self.speakers.remove(speaker)
+    #                 speaker = self.__sample_speaker()
+    #                 continue
+    #             wav = self.load_wav(utter)
+    #             if wav.shape[0] - self.seq_len > 0:
+    #                 break
+    #             else: # remove too short utterances
+    #                 self.speaker_to_utters[speaker].remove(utter)
+
+    #         wavs.append(wav)
+    #         labels.append(speaker)
+    #     return wavs, labels
+
+    # returns the next speaker
     def __getitem__(self, idx):
-        speaker, _ = self.__sample_speaker()
+        speaker = self.__sample_speaker()
         return speaker
 
+    # batch: batch of speaker
+    # returns features and labels
     def collate_fn(self, batch):
         labels = []
         feats = []
@@ -146,7 +188,7 @@ class MyDataset(Dataset):
                 wavs_, labels_ = random.choice(self.storage.queue)
             else:
                 # don't sample from storage, but from HDD
-                wavs_, labels_ = self.__sample_speaker_utterances(speaker)
+                wavs_, labels_ = self.__sample_wavs(speaker)
                 # if storage is full, remove an item
                 if self.storage.full():
                     _ = self.storage.get_nowait()
@@ -160,8 +202,14 @@ class MyDataset(Dataset):
 
             # get a random subset of each of the wavs and convert to MFCC.
             offsets_ = [random.randint(0, wav.shape[0] - self.seq_len) for wav in wavs_]
-            mels_ = [self.ap.melspectrogram(wavs_[i][offsets_[i]: offsets_[i] + self.seq_len]) for i in range(len(wavs_))]
-            feats_ = [torch.FloatTensor(mel) for mel in mels_]
+
+            # use selected feature type
+            if self.feature_type == 'mfcc':
+                mels_ = [self.ap.melspectrogram(wavs_[i][offsets_[i]: offsets_[i] + self.seq_len]) for i in range(len(wavs_))]
+                feats_ = [torch.FloatTensor(mel) for mel in mels_]
+            else: # TODO: not working
+                subsets_ = [wavs_[i][offsets_[i]: offsets_[i] + self.seq_len] for i in range(len(wavs_))]
+                feats_ = [torch.FloatTensor(subset) for subset in subsets_]
 
             labels.append(labels_)
             feats.extend(feats_)

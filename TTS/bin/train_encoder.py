@@ -42,17 +42,17 @@ def setup_loader(ap, is_val=False, verbose=False):
     else:
         dataset = MyDataset(ap,
                             meta_data_eval if is_val else meta_data_train,
-                            voice_len=1.6,
-                            num_utter_per_speaker=c.num_utters_per_speaker,
-                            num_speakers_in_batch=c.num_speakers_in_batch,
-                            skip_speakers=False,
+                            voice_len=c.dataset["voice_len"],
+                            num_utter_per_speaker=c.dataset["num_utters_per_speaker"],
+                            num_speakers_in_batch=c.dataset["num_speakers_in_batch"],
+                            skip_speakers=c.dataset["skip_speakers"],
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
                             verbose=verbose)
         # sampler = DistributedSampler(dataset) if num_gpus > 1 else None
         loader = DataLoader(dataset,
-                            batch_size=c.num_speakers_in_batch,
+                            batch_size=c.dataset["num_speakers_in_batch"],
                             shuffle=False,
                             num_workers=c.num_loader_workers,
                             collate_fn=dataset.collate_fn)
@@ -92,11 +92,11 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps):
         # forward pass model
         outputs = model(inputs) # [500, 256]
 
-        x=outputs.view(c.num_speakers_in_batch,outputs.shape[0] // c.num_speakers_in_batch, -1) #[5,100, 256]
+        x=outputs.view(c.dataset["num_speakers_in_batch"],outputs.shape[0] // c.dataset["num_speakers_in_batch"], -1) #[5,100, 256]
         # loss computation
         loss = criterion(
-            outputs.view(c.num_speakers_in_batch,
-                         outputs.shape[0] // c.num_speakers_in_batch, -1))
+            outputs.view(c.dataset["num_speakers_in_batch"],
+                         outputs.shape[0] // c.dataset["num_speakers_in_batch"], -1))
         loss.backward()
 
         grad_norm, skip_flag = check_update(model, c.grad_clip)
@@ -136,7 +136,7 @@ def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, c
         tb_logger.tb_train_epoch_stats(global_step, train_stats)
         figures = {
             "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                            c.num_utters_per_speaker, labels),
+                                            c.dataset["num_utters_per_speaker"], labels),
         }
         tb_logger.tb_train_figures(global_step, figures)
 
