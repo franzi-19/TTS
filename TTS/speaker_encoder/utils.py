@@ -39,6 +39,8 @@ def check_config_speaker_encoder(c):
     check_argument('feature_type', c['dataset'], enum_list=['mfcc', 'raw'], restricted=True, val_type=str)
     check_argument('voice_len', c['dataset'], restricted=True, val_type=float, min_val=0.1)
     check_argument('skip_speakers', c['dataset'], restricted=True, val_type=bool)
+    check_argument('use_caching', c['dataset'], restricted=True, val_type=bool)
+    check_argument('cache_path', c['dataset'], restricted=True, val_type=str)
 
     # checkpoint and output parameters
     check_argument('steps_plot_stats', c, restricted=True, val_type=int)

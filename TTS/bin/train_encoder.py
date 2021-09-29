@@ -49,6 +49,8 @@ def setup_loader(ap, is_val=False, verbose=False):
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
+                            use_caching=c.dataset["use_caching"],
+                            cache_path=c.dataset["cache_path"],
                             verbose=verbose)
         # sampler = DistributedSampler(dataset) if num_gpus > 1 else None
         loader = DataLoader(dataset,

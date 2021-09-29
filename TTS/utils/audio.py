@@ -263,6 +263,8 @@ class AudioProcessor(object):
             hop_length=self.hop_length,
             win_length=self.win_length,
             pad_mode=self.stft_pad_mode,
+            window="hann",
+            center=True,
         )
 
     def _istft(self, y):
