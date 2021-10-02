@@ -245,9 +245,9 @@ class MyDataset(Dataset):
         else: feature_type = self.feature_type
 
         filename = f"{Path(wav_path).stem}_{feature_type}_{self.seq_len}.npy"
-        # save_path = wav_path.replace(self.dataset_folder, self.cache_path) / filename
-        # return save_path
-        return Path(self.cache_path) / filename
+        save_path = Path(wav_path.replace(self.dataset_folder, self.cache_path)) / Path(filename)
+        return save_path
+        # return Path(self.cache_path) / filename
 
     def collate_without_caching(self, speaker):
         if random.random() < self.sample_from_storage_p and self.storage.full():

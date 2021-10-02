@@ -286,7 +286,7 @@ def main(args):  # pylint: disable=redefined-outer-name
 
     global_step = args.restore_step
     _, global_step = train(model, criterion, optimizer, scheduler, ap,
-                           global_step, c.max_steps, c.dataset['dataset_folder'], loss)
+                           global_step, c.max_steps, loss)
 
 
 if __name__ == '__main__':

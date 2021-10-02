@@ -29,15 +29,15 @@ def load_meta_data(datasets, dataset_folder):
         preprocessor = get_preprocessor_by_name(name)
 
         if meta_file_train is not None:
-            meta_data_train = preprocessor(root_path, meta_file_train)
+            meta_data_train = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_train))
 
         if meta_file_val is not None:
-            meta_data_eval = preprocessor(root_path, meta_file_val)
+            meta_data_eval = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_val))
         elif meta_file_train is not None:
             meta_data_eval, meta_data_train = split_dataset(meta_data_train)
             
         if meta_file_test is not None:
-            meta_data_test = preprocessor(root_path, meta_file_test)
+            meta_data_test = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_test))
 
         print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()} for training")
         print(f" | > Found {len(meta_data_eval)} files in {Path(root_path).resolve()} for evaluating")
