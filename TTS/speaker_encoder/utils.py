@@ -34,8 +34,10 @@ def check_config_speaker_encoder(c):
 
     # dataset parameter
     check_argument('dataset', c, restricted=True, val_type=dict)
-    check_argument('num_speakers_in_batch', c['dataset'], restricted=True, val_type=int, min_val=1)
-    check_argument('num_utters_per_speaker', c['dataset'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_speakers_in_batch_train', c['dataset'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_utters_per_speaker_train', c['dataset'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_speakers_in_batch_test', c['dataset'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_utters_per_speaker_test', c['dataset'], restricted=True, val_type=int, min_val=1)
     check_argument('feature_type', c['dataset'], enum_list=['mfcc', 'raw'], restricted=True, val_type=str)
     check_argument('voice_len', c['dataset'], restricted=True, val_type=float, min_val=0.1)
     check_argument('skip_speakers', c['dataset'], restricted=True, val_type=bool)
@@ -68,5 +70,6 @@ def check_config_speaker_encoder(c):
     for dataset_entry in c['datasets']:
         check_argument('name', dataset_entry, restricted=True, val_type=str)
         check_argument('path', dataset_entry, restricted=True, val_type=str)
-        check_argument('meta_file_train', dataset_entry, restricted=True, val_type=[str, list])
-        check_argument('meta_file_val', dataset_entry, restricted=True, val_type=str)
+        check_argument('meta_file_train', dataset_entry, restricted=False, val_type=[str, list])
+        check_argument('meta_file_val', dataset_entry, restricted=False, val_type=str)
+        check_argument('meta_file_test', dataset_entry, restricted=False, val_type=str)

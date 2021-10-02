@@ -36,48 +36,94 @@ print(" > Using CUDA: ", use_cuda)
 print(" > Number of GPUs: ", num_gpus)
 
 
-def setup_loader(ap, is_val=False, verbose=False):
-    if is_val:
-        loader = None
-    else:
+def setup_loader(ap, is_val=False, verbose=False, train=True):
+    if train:
         dataset = MyDataset(ap,
                             meta_data_eval if is_val else meta_data_train,
                             voice_len=c.dataset["voice_len"],
-                            num_utter_per_speaker=c.dataset["num_utters_per_speaker"],
-                            num_speakers_in_batch=c.dataset["num_speakers_in_batch"],
+                            num_utter_per_speaker=c.dataset["num_utters_per_speaker_train"],
+                            num_speakers_in_batch=c.dataset["num_speakers_in_batch_train"],
                             skip_speakers=c.dataset["skip_speakers"],
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
                             use_caching=c.dataset["use_caching"],
                             cache_path=c.dataset["cache_path"],
-                            verbose=verbose)
-        # sampler = DistributedSampler(dataset) if num_gpus > 1 else None
+                            dataset_folder=c.dataset["dataset_folder"],
+                            verbose=verbose,
+                            train=train)
+
         loader = DataLoader(dataset,
-                            batch_size=c.dataset["num_speakers_in_batch"],
+                            batch_size=c.dataset["num_speakers_in_batch_train"],
                             shuffle=False,
                             num_workers=c.num_loader_workers,
                             collate_fn=dataset.collate_fn)
+    else:
+        dataset = MyDataset(ap,
+                            meta_data_test,
+                            voice_len=c.dataset["voice_len"],
+                            num_utter_per_speaker=c.dataset["num_utters_per_speaker_test"],
+                            num_speakers_in_batch=c.dataset["num_speakers_in_batch_test"],
+                            skip_speakers=c.dataset["skip_speakers"],
+                            storage_size=c.storage["storage_size"],
+                            sample_from_storage_p=c.storage["sample_from_storage_p"],
+                            additive_noise=c.storage["additive_noise"],
+                            use_caching=c.dataset["use_caching"],
+                            cache_path=c.dataset["cache_path"],
+                            dataset_folder=c.dataset["dataset_folder"],
+                            verbose=verbose,
+                            train=train)
+
+        loader = DataLoader(dataset,
+                            batch_size=c.dataset["num_speakers_in_batch_test"],
+                            shuffle=False,
+                            num_workers=c.num_loader_workers,
+                                collate_fn=dataset.collate_fn)
     return loader
 
+def test(model, batch, criterion, global_step, max_steps):
+    model.eval()
+    start_time = time.time()
 
-def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps):
-    data_loader = setup_loader(ap, is_val=False, verbose=True)
-    model.train()
+    data = batch
+    inputs = data[0]
+    labels = data[1]
+
+    # dispatch data to GPU
+    if use_cuda:
+        inputs = inputs.cuda(non_blocking=True)
+
+    # forward pass model
+    outputs = model(inputs)
+
+    loss = criterion(
+        outputs.view(c.dataset["num_speakers_in_batch_test"],
+                        outputs.shape[0] // c.dataset["num_speakers_in_batch_test"], -1))
+
+    step_time = time.time() - start_time
+
+    _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, loss.item(), None, None, step_time, None, False)
+    _print_to_console(global_step, c, loss.item(), None, None, step_time, None, None, None, max_steps, False)
+
+
+def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps, best_loss=float('inf')):
+    data_loader_train = setup_loader(ap, verbose=True)
+    data_loader_test_iter = iter(setup_loader(ap, verbose=True, train=False))
+
     epoch_time = 0
-    best_loss = float('inf')
     avg_loss = 0
     avg_loader_time = 0
     end_time = time.time()
-    for _, data in enumerate(data_loader):
+    for _, data in enumerate(data_loader_train):
+        model.train()
         if global_step >= max_steps and max_steps != 0:
             break
 
         start_time = time.time()
 
         # setup input data
-        inputs = data[0] # [500, 161, 40]
-        labels = data[1]
+        inputs = data[0] # [500, 100, 40]
+        labels = data[1] # [5, 100]
         loader_time = time.time() - end_time
         global_step += 1
 
@@ -94,15 +140,13 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps):
         # forward pass model
         outputs = model(inputs) # [500, 256]
 
-        x=outputs.view(c.dataset["num_speakers_in_batch"],outputs.shape[0] // c.dataset["num_speakers_in_batch"], -1) #[5,100, 256]
         # loss computation
         loss = criterion(
-            outputs.view(c.dataset["num_speakers_in_batch"],
-                         outputs.shape[0] // c.dataset["num_speakers_in_batch"], -1))
+            outputs.view(c.dataset["num_speakers_in_batch_train"],
+                         outputs.shape[0] // c.dataset["num_speakers_in_batch_train"], -1))
         loss.backward()
 
-        grad_norm, skip_flag = check_update(model, c.grad_clip)
-        if skip_flag: continue # TODO test
+        grad_norm, _ = check_update(model, c.grad_clip)
 
         optimizer.step()
 
@@ -117,45 +161,68 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps):
         current_lr = optimizer.param_groups[0]['lr']
 
         _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, current_lr, grad_norm, step_time, avg_loader_time)
-        _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps)
+        _print_to_console(global_step, c, loss.item(), avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps)
 
         # save best model
         best_loss = save_best_model(model, optimizer, criterion, avg_loss, best_loss,
                                     OUT_PATH, global_step)
 
+        # run model on test set
+        if global_step % c.test_step == 0:
+            test(model, next(data_loader_test_iter), criterion, global_step, max_steps)
+
         end_time = time.time()
+
     return avg_loss, global_step
 
-def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, current_lr, grad_norm, step_time, avg_loader_time):
-    if global_step % c.steps_plot_stats == 0:
+def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, current_lr, grad_norm, step_time, avg_loader_time, train=True):
+    if train:
+        if global_step % c.steps_plot_stats == 0:
+            train_stats = {
+                "loss": avg_loss,
+                "lr": current_lr,
+                "grad_norm": grad_norm,
+                "step_time": step_time,
+                "avg_loader_time": avg_loader_time
+            }
+            tb_logger.tb_train_epoch_stats(global_step, train_stats)
+            figures = {
+                "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
+                                                c.dataset["num_utters_per_speaker_train"], labels),
+            }
+            tb_logger.tb_train_figures(global_step, figures)
+    else:
         train_stats = {
             "loss": avg_loss,
-            "lr": current_lr,
-            "grad_norm": grad_norm,
-            "step_time": step_time,
-            "avg_loader_time": avg_loader_time
+            "step_time": step_time
         }
-        tb_logger.tb_train_epoch_stats(global_step, train_stats)
+        tb_logger.tb_test_epoch_stats(global_step, train_stats)
         figures = {
             "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                            c.dataset["num_utters_per_speaker"], labels),
+                                            c.dataset["num_utters_per_speaker_test"], labels),
         }
-        tb_logger.tb_train_figures(global_step, figures)
+        tb_logger.tb_test_figures(global_step, figures)
 
-def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps):
-    if global_step % c.print_step == 0:
-        if max_steps == 0: max_steps = 'Infinity'
+def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps, train=True):
+    if train:
+        if global_step % c.print_step == 0:
+            if max_steps == 0: max_steps = 'Infinity'
+            print(
+                " > Train: Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
+                "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
+                    global_step, max_steps, loss, avg_loss, grad_norm, step_time,
+                    loader_time, avg_loader_time, current_lr),
+                flush=True)
+    else:
         print(
-            " > Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
-            "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
-                global_step, max_steps, loss.item(), avg_loss, grad_norm, step_time,
-                loader_time, avg_loader_time, current_lr),
-            flush=True)
+            " > Test:  Step:{}/{}  Loss:{:.5f}  StepTime:{:.2f} ".format(
+                global_step, max_steps, loss, step_time), flush=True)
 
 def main(args):  # pylint: disable=redefined-outer-name
     # pylint: disable=global-variable-undefined
     global meta_data_train
     global meta_data_eval
+    global meta_data_test
 
     ap = AudioProcessor(**c.audio)
     model = SpeakerEncoder(input_dim=c.model['input_dim'],
@@ -175,29 +242,34 @@ def main(args):  # pylint: disable=redefined-outer-name
     if args.restore_path:
         checkpoint = torch.load(args.restore_path)
         try:
+            print(f" > Restoring Model from {args.restore_path}...")
             # TODO: fix optimizer init, model.cuda() needs to be called before
             # optimizer restore
             # optimizer.load_state_dict(checkpoint['optimizer'])
             if c.reinit_layers:
                 raise RuntimeError
             model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            criterion.load_state_dict(checkpoint['criterion'])
         except KeyError:
-            print(" > Partial model Initialization.")
+            print(" > Failed -> Partial model Initialization.")
             model_dict = model.state_dict()
             model_dict = set_init_dict(model_dict, checkpoint, c)
             model.load_state_dict(model_dict)
             del model_dict
         for group in optimizer.param_groups:
             group['lr'] = c.lr
-        print(" > Model restored from step %d" % checkpoint['step'],
-              flush=True)
         args.restore_step = checkpoint['step']
+        loss = checkpoint['loss']
+        print(f" > Model restored from step {checkpoint['step']} with loss {loss}", flush=True)
+
     else:
         args.restore_step = 0
+        loss = float('inf')
 
     if use_cuda:
         model = model.cuda()
-        criterion.cuda()
+        criterion = criterion.cuda()
 
     if c.lr_decay:
         scheduler = NoamLR(optimizer,
@@ -210,11 +282,11 @@ def main(args):  # pylint: disable=redefined-outer-name
     print("\n > Model has {} parameters".format(num_params), flush=True)
 
     # pylint: disable=redefined-outer-name
-    meta_data_train, meta_data_eval = load_meta_data(c.datasets)
+    meta_data_train, meta_data_eval, meta_data_test = load_meta_data(c.datasets, c.dataset['dataset_folder'])
 
     global_step = args.restore_step
     _, global_step = train(model, criterion, optimizer, scheduler, ap,
-                           global_step, c.max_steps)
+                           global_step, c.max_steps, c.dataset['dataset_folder'], loss)
 
 
 if __name__ == '__main__':

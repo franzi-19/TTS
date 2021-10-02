@@ -13,7 +13,7 @@ class MyDataset(Dataset):
     def __init__(self, ap, meta_data, voice_len=1.6, num_speakers_in_batch=64,
                  storage_size=1, sample_from_storage_p=0.5, additive_noise=0,
                  num_utter_per_speaker=10, skip_speakers=False, feature_type='mfcc', 
-                 use_caching=False, cache_path=None, verbose=False):
+                 use_caching=False, cache_path=None, dataset_folder=None, verbose=False, train=True):
         """
         Args:
             ap (TTS.tts.utils.AudioProcessor): audio processor object.
@@ -33,22 +33,24 @@ class MyDataset(Dataset):
         self.ap = ap
         self.use_caching = use_caching
         self.cache_path = cache_path
+        self.dataset_folder = dataset_folder
         self.verbose = verbose
         self.__parse_items()
         self.storage = queue.Queue(maxsize=storage_size*num_speakers_in_batch)
         self.sample_from_storage_p = float(sample_from_storage_p)
         self.additive_noise = float(additive_noise)
         if self.verbose:
-            print("\n > DataLoader Initialization")
+            print(f"\n > DataLoader Initialization for {'Training' if train else 'Testing'}")
             print(f" | > Number of found Speakers: {len(self.speakers)}")
             if num_speakers_in_batch <= len(self.speakers):
                 print(f" | > Speakers per Batch: {num_speakers_in_batch}")
             else:
                 print(f" | > Speakers per Batch: {len(self.speakers)}(adjusted because specified number was too high)")
-            print(f" | > Storage Size: {self.storage.maxsize} speakers, each with {num_utter_per_speaker} utters")
-            print(f" | > Sample_from_storage_p : {self.sample_from_storage_p}")
+            if not use_caching:
+                print(f" | > Storage Size: {self.storage.maxsize} speakers, each with {num_utter_per_speaker} utters")
+                print(f" | > Sample_from_storage_p : {self.sample_from_storage_p}")
             print(f" | > Noise added : {self.additive_noise}")
-            print(f" | > Number of Instances : {len(self.items)}")
+            print(f" | > Number of Items in the Dataset : {len(self.items)}")
             print(f" | > Sequence Length: {self.seq_len}")
             if use_caching:
                 print(f" | > Cache Path: {self.cache_path}")
@@ -243,6 +245,8 @@ class MyDataset(Dataset):
         else: feature_type = self.feature_type
 
         filename = f"{Path(wav_path).stem}_{feature_type}_{self.seq_len}.npy"
+        # save_path = wav_path.replace(self.dataset_folder, self.cache_path) / filename
+        # return save_path
         return Path(self.cache_path) / filename
 
     def collate_without_caching(self, speaker):

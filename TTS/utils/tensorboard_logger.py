@@ -71,6 +71,9 @@ class TensorboardLogger(object):
     def tb_eval_audios(self, step, audios, sample_rate):
         self.dict_to_tb_audios(f"{self.model_name}_EvalAudios", audios, step, sample_rate)
 
+    def tb_test_epoch_stats(self, step, stats):
+        self.dict_to_tb_scalar(f"{self.model_name}_TestEpochStats", stats, step)
+
     def tb_test_audios(self, step, audios, sample_rate):
         self.dict_to_tb_audios(f"{self.model_name}_TestAudios", audios, step, sample_rate)
 

@@ -9,24 +9,51 @@ from tqdm import tqdm
 from TTS.tts.utils.generic_utils import split_dataset
 
 
-def load_meta_data(datasets):
+def load_meta_data(datasets, dataset_folder):
     meta_data_train_all = []
     meta_data_eval_all = []
+    meta_data_test_all = []
+
     for dataset in datasets:
         name = dataset['name']
-        root_path = dataset['path']
-        meta_file_train = dataset['meta_file_train']
-        meta_file_val = dataset['meta_file_val']
+        root_path = Path(dataset_folder) / Path(dataset['path'])
+
+        meta_file_train = dataset['meta_file_train'] if 'meta_file_train' in dataset else None
+        meta_file_val = dataset['meta_file_val'] if 'meta_file_val' in dataset else None
+        meta_file_test = dataset['meta_file_test'] if 'meta_file_test' in dataset else None
+
+        meta_data_train = []
+        meta_data_eval = [] 
+        meta_data_test = []
+
         preprocessor = get_preprocessor_by_name(name)
-        meta_data_train = preprocessor(root_path, meta_file_train)
-        print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()}")
-        if meta_file_val is None:
-            meta_data_eval, meta_data_train = split_dataset(meta_data_train)
-        else:
+
+        if meta_file_train is not None:
+            meta_data_train = preprocessor(root_path, meta_file_train)
+
+        if meta_file_val is not None:
             meta_data_eval = preprocessor(root_path, meta_file_val)
+        elif meta_file_train is not None:
+            meta_data_eval, meta_data_train = split_dataset(meta_data_train)
+            
+        if meta_file_test is not None:
+            meta_data_test = preprocessor(root_path, meta_file_test)
+
+        print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()} for training")
+        print(f" | > Found {len(meta_data_eval)} files in {Path(root_path).resolve()} for evaluating")
+        print(f" | > Found {len(meta_data_test)} files in {Path(root_path).resolve()} for testing")
+
+        # meta_data_train = preprocessor(root_path, meta_file_train)
+        # print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()}")
+        # if meta_file_val is None:
+        #     meta_data_eval, meta_data_train = split_dataset(meta_data_train)
+        # else:
+        #     meta_data_eval = preprocessor(root_path, meta_file_val)
+
         meta_data_train_all += meta_data_train
         meta_data_eval_all += meta_data_eval
-    return meta_data_train_all, meta_data_eval_all
+        meta_data_test_all += meta_data_test
+    return meta_data_train_all, meta_data_eval_all, meta_data_test_all
 
 
 def get_preprocessor_by_name(name):
@@ -269,7 +296,7 @@ def asvspoof_19(root_path, meta_file):
     :param meta_file: Path from root_path to asvspoof info file (The .txt that has locations and info of every sample)
     """
     items = []
-    with open(os.path.join(root_path, meta_file), 'r') as file: # TODO only meta_file? bug?
+    with open(os.path.join(root_path, meta_file), 'r') as file:
         for line in file.readlines():
             line = line.strip()
             infos = line.split(' ')

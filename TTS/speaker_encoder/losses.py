@@ -142,7 +142,7 @@ class AngleProtoLoss(nn.Module):
         self.b = nn.Parameter(torch.tensor(init_b))
         self.criterion = torch.nn.CrossEntropyLoss()
 
-        print(' > Initialised Angular Prototypical loss')
+        print(' > Initialised Angular Prototypical loss \n')
 
     def forward(self, x):
         """
