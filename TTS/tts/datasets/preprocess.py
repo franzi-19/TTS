@@ -27,6 +27,7 @@ def load_meta_data(datasets, dataset_folder):
         meta_data_test = []
 
         preprocessor = get_preprocessor_by_name(name)
+        # print(root_path, "-", Path(dataset_folder), "-", (Path(dataset_folder) / Path(meta_file_train)))
 
         if meta_file_train is not None:
             meta_data_train = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_train))

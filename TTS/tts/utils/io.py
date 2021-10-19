@@ -71,7 +71,7 @@ def save_best_model(model, optimizer, criterion, model_loss, best_loss, out_path
         best_loss = model_loss
         bestmodel_path = "best_model.pth.tar"
         bestmodel_path = os.path.join(out_path, bestmodel_path)
-        print("\n > BEST MODEL ({0:.5f}) : {1:} \n".format(model_loss, bestmodel_path))
+        print("> BEST MODEL ({0:.5f}) : {1:} \n".format(model_loss, bestmodel_path))
         save_fsspec(state, bestmodel_path)
     return best_loss
 

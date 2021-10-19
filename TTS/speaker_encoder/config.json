@@ -37,14 +37,14 @@
         "voice_len": 1.0,  // 1.6 // size of subset of feature used for training
         "skip_speakers": false, // skip speaker if they have less than 'num_utter_per_speaker' utterances
         "use_caching": true,   // uses caching and not the storage concept
-        "dataset_folder": "/opt/pavelc/datasets/", //"/run/media/franzi/ssd/Without_Backup/datasets/", // parent folder, where all the datasets are saved
-        "cache_path": "/opt/franzi/cache/asv_spoof" // "/run/media/franzi/ssd/Without_Backup/datasets/cache_TTS/" // where to save and load from for caching
+        "dataset_folder": "/opt/franzi/datasets/", //"/run/media/franzi/ssd/Without_Backup/datasets/", // parent folder, where all the datasets are saved
+        "cache_path": "/opt/franzi/cache/cache_TTS/" // "/run/media/franzi/ssd/Without_Backup/datasets/cache_TTS/" // where to save and load from for caching
     },
 
-    "max_steps": 1000, // total number of steps to train, if == 0, it runs without a stopping criterion (-> 10000000000 steps)
-    "print_step": 1, // 20, Number of steps to log traning on console.
-    "steps_plot_stats": 1, // 10, number of steps to plot embeddings.
-    "test_step": 10,     // number of steps to evaluate on test set
+    "max_steps": 0, // total number of steps to train, if == 0, it runs without a stopping criterion (-> 10000000000 steps)
+    "print_step": 20, // 20, Number of steps to log traning on console.
+    "steps_plot_stats": 20, // 10, number of steps to plot embeddings.
+    "test_step": 60,     // number of steps to evaluate on test set
     "num_loader_workers": 4, // number of training data loader processes. Don't set it too big. 4-8 are good values.
 
     "reinit_layers": [],
@@ -87,28 +87,24 @@
             // },
             // {
             //     "name": "youtube_dataset", 
-            //     "path": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/",
-            //     "meta_file_train": "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/malicious.csv",
-            //     "meta_file_val": null
-            // }
+            //     "path": "deepfake_datasets/youtube_dataset_malicious/",
+            //     "meta_file_test": "deepfake_datasets/youtube_dataset_malicious/malicious.csv"
+            // },
             {
                 "name": "asvspoof_19", 
                 "path": "DS/LA/ASVspoof2019_LA_train/", // "ASVspoof2019_wav/LA/ASVspoof2019_LA_train",
-                "meta_file_train": "/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt", // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
-                // "meta_file_val": null
-                "meta_file_test": "/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
+                "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
+                // "meta_file_test": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
             }
             // ,{
             //     "name": "asvspoof_19", 
-            //     "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_dev/",
-            //     "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt",
-            //     "meta_file_val": null
+            //     "path": "DS/LA/ASVspoof2019_LA_dev/",
+            //     "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt"
             // }
             // ,{
             //     "name": "asvspoof_19", 
-            //     "path": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_eval/",
-            //     "meta_file_train": "/opt/pavelc/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt",
-            //     "meta_file_val": null
+            //     "path": "DS/LA/ASVspoof2019_LA_eval/",
+            //     "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"
             // }
         ]
 }
