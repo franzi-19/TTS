@@ -2,24 +2,27 @@ import queue
 import random
 from pathlib import Path
 
-import numpy
+import g711
 import numpy as np
+import soundfile as sf
 import torch
+from pydub import AudioSegment
 from torch.utils.data import Dataset
-from tqdm import tqdm
 
 
 class MyDataset(Dataset):
     def __init__(self, ap, meta_data, voice_len=1.6, num_speakers_in_batch=64,
                  storage_size=1, sample_from_storage_p=0.5, additive_noise=0,
                  num_utter_per_speaker=10, skip_speakers=False, feature_type='mfcc', 
-                 use_caching=False, cache_path=None, dataset_folder=None, verbose=False, train=True):
+                 use_caching=False, cache_path=None, dataset_folder=None, verbose=False, train=True,
+                 codecs=None, prob=0.0):
         """
         Args:
             ap (TTS.tts.utils.AudioProcessor): audio processor object.
             meta_data (list): list of dataset instances.
             seq_len (int): voice segment length in seconds.
             verbose (bool): print diagnostic information.
+            TODO
         """
         self.items = meta_data # items from preprocess functions
         self.sample_rate = ap.sample_rate
@@ -39,6 +42,8 @@ class MyDataset(Dataset):
         self.storage = queue.Queue(maxsize=storage_size*num_speakers_in_batch)
         self.sample_from_storage_p = float(sample_from_storage_p)
         self.additive_noise = float(additive_noise)
+        self.codecs = codecs
+        self.prob = prob
         if self.verbose:
             print(f"\n > DataLoader Initialization for {'Training' if train else 'Testing'}")
             print(f" | > Number of found Speakers: {len(self.speakers)}")
@@ -58,26 +63,80 @@ class MyDataset(Dataset):
                 print(f" | > No caching used")
             print("")
 
-    def load_wav(self, filename):
-        audio = self.ap.load_wav(filename, sr=self.ap.sample_rate)
+    def load_wav(self, filename_to_load, parent_folder_to_save=None, codec=None):
+        """
+        always returns a wav file
+        if codecs are given, it applies given codec first and then returns the modified wav
+        """
+        if codec == None:
+            audio = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+        else:
+            audio = self._apply_codec(codec, filename_to_load, parent_folder_to_save)
         return audio
 
+    # TODO: maybe do it like the different dataset functions
+    def _apply_codec(self, codec, filename_to_load, parent_folder_to_save):
+        possible_codecs = ["opus", "gsm", "ulaw", "g722", "alaw", "wav"]
+        assert codec in possible_codecs, f"codec {codec} needs to be one of these: {possible_codecs}"
+        assert parent_folder_to_save != None, f"No folder given when applying codec to {filename_to_load}"
+
+        intermediate_1 = parent_folder_to_save / f"{codec}.{codec}"
+        intermediate_2 = parent_folder_to_save / f"{codec}.wav"
+        frame_rate = {"opus":16000, "gsm":8000, "g722":16000, "wav":16000, "ulaw":8000, "alaw":8000}
+        
+        if codec in ["opus", "gsm", "g722", "wav"]:
+            sound = AudioSegment.from_file(filename_to_load, format="wav")
+            sound.export(intermediate_1, format=codec)
+            sound = AudioSegment.from_file(intermediate_1, codec=codec)
+            sound = sound.set_frame_rate(frame_rate[codec])
+            sound.export(intermediate_2, format="wav")
+
+        elif codec == "ulaw": 
+            wav, _ = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+            ulaw = g711.encode_ulaw(wav)
+            decoded = g711.decode_ulaw(ulaw)
+            sf.write(intermediate_2, decoded, frame_rate[codec])
+
+        elif codec == "alaw":
+            wav, _ = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+            alaw = g711.encode_alaw(wav)
+            decoded = g711.encode_alaw(alaw)
+            sf.write(intermediate_2, decoded, frame_rate[codec])
+        
+        audio =  self.ap.load_wav(intermediate_2, sr=self.ap.sample_rate)
+        intermediate_1.unlink()
+        intermediate_2.unlink()
+        return audio
+
+    def _select_codec(self, codecs, prob):
+        # select codec
+        if isinstance(codecs, list):
+            codec = random.sample(codecs, 1)
+        else:
+            codec = codecs
+
+        # if to apply codec or just use normal wav
+        if random.choices([0,1], [1.0-prob], k=1)[0]:
+            return codec
+        else:
+            return None
+
     # not used
-    def load_data(self, idx):
-        text, wav_file, speaker_name = self.items[idx]
-        wav = np.asarray(self.load_wav(wav_file), dtype=np.float32)
-        mel = self.ap.melspectrogram(wav).astype("float32")
-        # sample seq_len
+    # def load_data(self, idx):
+    #     text, wav_file, speaker_name = self.items[idx]
+    #     wav = np.asarray(self.load_wav(wav_file), dtype=np.float32)
+    #     mel = self.ap.melspectrogram(wav).astype("float32")
+    #     # sample seq_len
 
-        assert text.size > 0, self.items[idx][1]
-        assert wav.size > 0, self.items[idx][1]
+    #     assert text.size > 0, self.items[idx][1]
+    #     assert wav.size > 0, self.items[idx][1]
 
-        sample = {
-            "mel": mel,
-            "item_idx": self.items[idx][1],
-            "speaker_name": speaker_name,
-        }
-        return sample
+    #     sample = {
+    #         "mel": mel,
+    #         "item_idx": self.items[idx][1],
+    #         "speaker_name": speaker_name,
+    #     }
+    #     return sample
 
     def __parse_items(self):
         """
@@ -111,18 +170,9 @@ class MyDataset(Dataset):
         returns a random speaker (with some of their utterances)
         """
         speaker = random.sample(self.speakers, 1)[0]
+        return speaker
 
-        # not used
-        # if self.num_utter_per_speaker > len(self.speaker_to_utters[speaker]):
-        #     utters = random.choices(
-        #         self.speaker_to_utters[speaker], k=self.num_utter_per_speaker
-        #     )
-        # else:
-        #     utters = random.sample(
-        #         self.speaker_to_utters[speaker], self.num_utter_per_speaker
-        #     )
-        return speaker #, utters
-
+    # used for non-caching
     def __sample_wavs(self, speaker):
         """
         returns list of wavs of length 'num_utter_per_speaker', labels = speaker
@@ -148,32 +198,6 @@ class MyDataset(Dataset):
             labels.append(speaker)
         return wavs, labels
             
-
-    # def __sample_speaker_utterances(self, speaker):
-    #     """
-    #     Sample all M utterances for the given speaker.
-    #     """
-    #     wavs = []
-    #     labels = []
-    #     for _ in range(self.num_utter_per_speaker):
-    #         # TODO:dummy but works
-    #         while True:
-    #             if len(self.speaker_to_utters[speaker]) > 0:
-    #                 utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
-    #             else:
-    #                 self.speakers.remove(speaker)
-    #                 speaker = self.__sample_speaker()
-    #                 continue
-    #             wav = self.load_wav(utter)
-    #             if wav.shape[0] - self.seq_len > 0:
-    #                 break
-    #             else: # remove too short utterances
-    #                 self.speaker_to_utters[speaker].remove(utter)
-
-    #         wavs.append(wav)
-    #         labels.append(speaker)
-    #     return wavs, labels
-
     # returns the next speaker
     def __getitem__(self, idx):
         speaker = self.__sample_speaker()
@@ -200,18 +224,19 @@ class MyDataset(Dataset):
         feats = torch.stack(feats) # [250,40,138] for no caching, 
         return feats.transpose(1, 2), labels
 
-    # TODO: what to do with subsetting?
     def collate_with_caching(self, speaker):
         count = 0
         labels_ = []
         feats_ = []
         while count < self.num_utter_per_speaker:
             utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
-            save_path = self.get_save_path(utter)
+            codec = self._select_codec(self.codecs, self.prob)
+            save_path, parent_folder = self.get_save_path(utter, codec)
+
             if save_path.exists():
                 feat = self.load_np(save_path)  # 40, 138
             else:
-                wav = self.load_wav(utter) # [23915,]
+                wav = self.load_wav(utter, parent_folder, codec) # [23915,]
                 if wav.shape[0] < self.seq_len: # remove too short utterances, if no utterances left draw another speaker
                     self.speaker_to_utters[speaker].remove(utter)
                     if len(self.speaker_to_utters[speaker]) == 0:
@@ -222,9 +247,6 @@ class MyDataset(Dataset):
                 feat = self._add_gaussian_noise(wav)  # [23915,]
 
                 if self.feature_type == 'mfcc':
-                    # offset = random.randint(0, wav.shape[0] - self.seq_len) # TODO: delete after fixing _select_subset()
-                    # y=wav[offset: offset + self.seq_len] # 22050
-                    # feat = self.ap.melspectrogram(wav[offset: offset + self.seq_len]) # [40,138]
                     feat = self.ap.melspectrogram(wav) # [40, 202]
                 
                 x=feat.shape
@@ -239,12 +261,8 @@ class MyDataset(Dataset):
             
         return feats_, labels_
 
-    # TODO one folder for each dataset
-    def get_save_path(self, wav_path):
-        if self.feature_type == 'mfcc': feature_type = 'mel'
-        else: feature_type = self.feature_type
-
-        filename = f"{Path(wav_path).stem}_{feature_type}_{self.seq_len}.npy"
+    def get_save_path(self, wav_path, codec):
+        filename = f"{Path(wav_path).stem}_{self.feature_type}_{codec}.npy"
 
         parent_folder = Path(wav_path).parents[0]
         parent_folder = parent_folder.relative_to(self.dataset_folder)
@@ -252,7 +270,7 @@ class MyDataset(Dataset):
         parent_folder.mkdir(parents=True, exist_ok=True)
 
         save_path = parent_folder / Path(filename)
-        return save_path
+        return save_path, parent_folder
 
     def collate_without_caching(self, speaker):
         if random.random() < self.sample_from_storage_p and self.storage.full():

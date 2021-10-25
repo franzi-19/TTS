@@ -28,6 +28,11 @@
         "do_sound_norm": false  // apply normalization
     },
     
+    "compression": { // data augmentation, if prob == 0.0 no augmentation
+        "prob": 0.00, // 0.00 - 1.00
+        "codecs": ["ulaw"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav"
+    },
+    
     "dataset":{
         "num_speakers_in_batch_train": 5, // YT: 5, vctk: 64 // Batch size for training: num_speakers_in_batch*num_utters_per_speaker, if the dataset does not contain enough speaker, all speaker will be in every batch
         "num_utters_per_speaker_train": 100, // YT: 100, vctk: 10

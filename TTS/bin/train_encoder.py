@@ -51,7 +51,9 @@ def setup_loader(ap, is_val=False, verbose=False, train=True):
                             cache_path=c.dataset["cache_path"],
                             dataset_folder=c.dataset["dataset_folder"],
                             verbose=verbose,
-                            train=train)
+                            train=train,
+                            codecs=c.compression["codecs"], 
+                            prob=c.compression["prob"])
 
         loader = DataLoader(dataset,
                             batch_size=c.dataset["num_speakers_in_batch_train"],
