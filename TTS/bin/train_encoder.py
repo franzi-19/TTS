@@ -47,6 +47,7 @@ def setup_loader(ap, is_val=False, verbose=False, train=True):
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
+                            feature_type=c.dataset["feature_type"],
                             use_caching=c.dataset["use_caching"],
                             cache_path=c.dataset["cache_path"],
                             dataset_folder=c.dataset["dataset_folder"],
@@ -54,12 +55,8 @@ def setup_loader(ap, is_val=False, verbose=False, train=True):
                             train=train,
                             codecs=c.compression["codecs"], 
                             prob=c.compression["prob"])
+        c.dataset["num_speakers_in_batch_train"] = len(dataset.speakers) # if number of speakers per batch was adjusted
 
-        loader = DataLoader(dataset,
-                            batch_size=c.dataset["num_speakers_in_batch_train"],
-                            shuffle=False,
-                            num_workers=c.num_loader_workers,
-                            collate_fn=dataset.collate_fn)
     else:
         dataset = MyDataset(ap,
                             meta_data_test,
@@ -70,17 +67,19 @@ def setup_loader(ap, is_val=False, verbose=False, train=True):
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
+                            feature_type=c.dataset["feature_type"],
                             use_caching=c.dataset["use_caching"],
                             cache_path=c.dataset["cache_path"],
                             dataset_folder=c.dataset["dataset_folder"],
                             verbose=verbose,
                             train=train)
+        c.dataset["num_speakers_in_batch_test"] = len(dataset.speakers) # if number of speakers per batch was adjusted
 
-        loader = DataLoader(dataset,
-                            batch_size=c.dataset["num_speakers_in_batch_test"],
-                            shuffle=False,
-                            num_workers=c.num_loader_workers,
-                                collate_fn=dataset.collate_fn)
+    loader = DataLoader(dataset,
+                        batch_size=len(dataset.speakers),
+                        shuffle=False,
+                        num_workers=c.num_loader_workers,
+                        collate_fn=dataset.collate_fn)
     return loader
 
 def test(model, batch, criterion, global_step, max_steps):
@@ -98,6 +97,8 @@ def test(model, batch, criterion, global_step, max_steps):
     # forward pass model
     outputs = model(inputs)
 
+    x=outputs.view(c.dataset["num_speakers_in_batch_test"],
+                        outputs.shape[0] // c.dataset["num_speakers_in_batch_test"], -1)
     loss = criterion(
         outputs.view(c.dataset["num_speakers_in_batch_test"],
                         outputs.shape[0] // c.dataset["num_speakers_in_batch_test"], -1))
@@ -170,7 +171,7 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps, be
                                     OUT_PATH, global_step)
 
         # run model on test set
-        if global_step % c.test_step == 0:
+        if global_step % c.steps_test == 0:
             test(model, next(data_loader_test_iter), criterion, global_step, max_steps)
 
         end_time = time.time()
@@ -179,7 +180,7 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps, be
 
 def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, current_lr, grad_norm, step_time, avg_loader_time, train=True):
     if train:
-        if global_step % c.steps_plot_stats == 0:
+        if global_step % c.steps_plot_train == 0:
             train_stats = {
                 "loss": avg_loss,
                 "lr": current_lr,
@@ -207,7 +208,7 @@ def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, c
 
 def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, loader_time, avg_loader_time, current_lr, max_steps, train=True):
     if train:
-        if global_step % c.print_step == 0:
+        if global_step % c.steps_print_train == 0:
             if max_steps == 0: max_steps = 'Infinity'
             print(
                 " > Train: Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
@@ -217,7 +218,7 @@ def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, load
                 flush=True)
     else:
         print(
-            " > Test:  Step:{}/{}  Loss:{:.5f}  StepTime:{:.2f} ".format(
+            " > Test: Step:{}/{}  Loss:{:.5f}  StepTime:{:.2f} ".format(
                 global_step, max_steps, loss, step_time), flush=True)
 
 def main(args):  # pylint: disable=redefined-outer-name
