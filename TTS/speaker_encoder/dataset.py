@@ -1,5 +1,6 @@
 import queue
 import random
+import tempfile
 from pathlib import Path
 
 import g711
@@ -50,7 +51,7 @@ class MyDataset(Dataset):
             if num_speakers_in_batch <= len(self.speakers):
                 print(f" | > Speakers per Batch: {num_speakers_in_batch}")
             else:
-                print(f" | > Speakers per Batch: {len(self.speakers)}(adjusted because specified number was too high)")
+                print(f" | > Speakers per Batch: {len(self.speakers)} (adjusted because specified number was too high)")
             if not use_caching:
                 print(f" | > Storage Size: {self.storage.maxsize} speakers, each with {num_utter_per_speaker} utters")
                 print(f" | > Sample_from_storage_p : {self.sample_from_storage_p}")
@@ -63,7 +64,7 @@ class MyDataset(Dataset):
                 print(f" | > No caching used")
             print("")
 
-    def load_wav(self, filename_to_load, parent_folder_to_save=None, codec=None):
+    def load_wav(self, filename_to_load, codec=None):
         """
         always returns a wav file
         if codecs are given, it applies given codec first and then returns the modified wav
@@ -71,52 +72,64 @@ class MyDataset(Dataset):
         if codec == None:
             audio = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
         else:
-            audio = self._apply_codec(codec, filename_to_load, parent_folder_to_save)
+            audio = self._apply_codec(codec, filename_to_load)
         return audio
 
     # TODO: maybe do it like the different dataset functions
-    def _apply_codec(self, codec, filename_to_load, parent_folder_to_save):
+    # TODO: check if intermediates are saved at right
+    def _apply_codec(self, codec, filename_to_load):
         possible_codecs = ["opus", "gsm", "ulaw", "g722", "alaw", "wav"]
-        assert codec in possible_codecs, f"codec {codec} needs to be one of these: {possible_codecs}"
-        assert parent_folder_to_save != None, f"No folder given when applying codec to {filename_to_load}"
+        assert codec in possible_codecs, f"Codec {codec} needs to be one of these: {possible_codecs}"
 
-        intermediate_1 = parent_folder_to_save / f"{codec}.{codec}"
-        intermediate_2 = parent_folder_to_save / f"{codec}.wav"
-        frame_rate = {"opus":16000, "gsm":8000, "g722":16000, "wav":16000, "ulaw":8000, "alaw":8000}
-        
-        if codec in ["opus", "gsm", "g722", "wav"]:
-            sound = AudioSegment.from_file(filename_to_load, format="wav")
-            sound.export(intermediate_1, format=codec)
-            sound = AudioSegment.from_file(intermediate_1, codec=codec)
-            sound = sound.set_frame_rate(frame_rate[codec])
-            sound.export(intermediate_2, format="wav")
+        with tempfile.TemporaryDirectory() as dirpath:
+            intermediate_1 = Path(dirpath) / f"{codec}.{codec}"
+            intermediate_2 = Path(dirpath) / f"{Path(filename_to_load).stem}_{codec}.wav"
+            frame_rate = {"opus":16000, "gsm":8000, "g722":16000, "wav":16000, "ulaw":8000, "alaw":8000}
+            
+            if codec in ["opus", "gsm", "g722", "wav"]:
+                sound = AudioSegment.from_file(filename_to_load, format="wav")
+                sound.export(intermediate_1, format=codec)
+                sound = AudioSegment.from_file(intermediate_1, codec=codec)
+                sound = sound.set_frame_rate(frame_rate[codec])
+                sound.export(intermediate_2, format="wav")
 
-        elif codec == "ulaw": 
-            wav, _ = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
-            ulaw = g711.encode_ulaw(wav)
-            decoded = g711.decode_ulaw(ulaw)
-            sf.write(intermediate_2, decoded, frame_rate[codec])
+            elif codec == "ulaw": 
+                wav = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+                ulaw = g711.encode_ulaw(wav)
+                decoded = g711.decode_ulaw(ulaw)
+                sf.write(intermediate_2, decoded, frame_rate[codec])
 
-        elif codec == "alaw":
-            wav, _ = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
-            alaw = g711.encode_alaw(wav)
-            decoded = g711.encode_alaw(alaw)
-            sf.write(intermediate_2, decoded, frame_rate[codec])
-        
-        audio =  self.ap.load_wav(intermediate_2, sr=self.ap.sample_rate)
-        intermediate_1.unlink()
-        intermediate_2.unlink()
+            try:
+                if codec == "alaw":
+                    wav = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+                    alaw = g711.encode_alaw(wav)
+                    decoded = g711.encode_alaw(alaw)
+                    # sf.write(intermediate_2, decoded, frame_rate[codec])
+            except Exception:
+                print("alaw not working for ", filename_to_load)
+                codec = "wav"
+                intermediate_1 = Path(dirpath) / f"{codec}.{codec}"
+                intermediate_2 = Path(dirpath) / f"{Path(filename_to_load).stem}_{codec}.wav"
+                sound = AudioSegment.from_file(filename_to_load, format="wav")
+                sound.export(intermediate_1, format=codec)
+                sound = AudioSegment.from_file(intermediate_1, codec=codec)
+                sound = sound.set_frame_rate(frame_rate[codec])
+                sound.export(intermediate_2, format="wav")
+            
+            assert intermediate_2.exists(), f"Something went wrong while applying the codecs, file {intermediate_2} should exist"
+            audio =  self.ap.load_wav(intermediate_2, sr=self.ap.sample_rate)
+            
         return audio
 
     def _select_codec(self, codecs, prob):
         # select codec
         if isinstance(codecs, list):
-            codec = random.sample(codecs, 1)
+            codec = random.sample(codecs, 1)[0]
         else:
             codec = codecs
 
         # if to apply codec or just use normal wav
-        if random.choices([0,1], [1.0-prob], k=1)[0]:
+        if random.choices([0,1], [1.0-prob, prob], k=1)[0]:
             return codec
         else:
             return None
@@ -231,12 +244,11 @@ class MyDataset(Dataset):
         while count < self.num_utter_per_speaker:
             utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
             codec = self._select_codec(self.codecs, self.prob)
-            save_path, parent_folder = self.get_save_path(utter, codec)
-
+            save_path = self.get_save_path(utter, codec)
             if save_path.exists():
                 feat = self.load_np(save_path)  # 40, 138
             else:
-                wav = self.load_wav(utter, parent_folder, codec) # [23915,]
+                wav = self.load_wav(utter, codec) # [23915,]
                 if wav.shape[0] < self.seq_len: # remove too short utterances, if no utterances left draw another speaker
                     self.speaker_to_utters[speaker].remove(utter)
                     if len(self.speaker_to_utters[speaker]) == 0:
@@ -249,9 +261,7 @@ class MyDataset(Dataset):
                 if self.feature_type == 'mfcc':
                     feat = self.ap.melspectrogram(wav) # [40, 202]
                 
-                x=feat.shape
-                np.save(file=save_path, arr=feat)  
-
+                np.save(file=save_path, arr=feat)
             feat = self._select_subset(feat)
             feat = torch.FloatTensor(feat) 
 
@@ -270,7 +280,7 @@ class MyDataset(Dataset):
         parent_folder.mkdir(parents=True, exist_ok=True)
 
         save_path = parent_folder / Path(filename)
-        return save_path, parent_folder
+        return save_path
 
     def collate_without_caching(self, speaker):
         if random.random() < self.sample_from_storage_p and self.storage.full():
@@ -305,7 +315,7 @@ class MyDataset(Dataset):
         add random gaussian noise
         """
         if self.additive_noise > 0:
-            noise_ = numpy.random.normal(0, self.additive_noise, size=len(wav))
+            noise_ = np.random.normal(0, self.additive_noise, size=len(wav))
             wav_ = wav + noise_
         return wav_
 
@@ -319,6 +329,7 @@ class MyDataset(Dataset):
             return feat[:,offset: offset + seq_len]
         else:
             offset = random.randint(0, feat.shape[0] - self.seq_len)
+            print(offset)
             return feat[offset: offset + self.seq_len]
 
     @staticmethod
