@@ -45,10 +45,9 @@ def check_config_speaker_encoder(c):
     check_argument('cache_path', c['dataset'], restricted=True, val_type=str)
 
     # checkpoint and output parameters
-    check_argument('steps_plot_stats', c, restricted=True, val_type=int)
-    # check_argument('checkpoint', c, restricted=True, val_type=bool)
-    # check_argument('save_step', c, restricted=True, val_type=int)
-    check_argument('print_step', c, restricted=True, val_type=int)
+    check_argument('steps_plot_train', c, restricted=True, val_type=int)
+    check_argument('steps_print_train', c, restricted=True, val_type=int)
+    check_argument('steps_test', c, restricted=True, val_type=int)
     check_argument('output_path', c, restricted=True, val_type=str)
 
     # model parameters

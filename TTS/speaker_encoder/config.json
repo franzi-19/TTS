@@ -1,6 +1,6 @@
 
 {
-    "run_name": "lstm_mueller91",
+    "run_name": "lstm",
     "run_description": "train speaker encoder with asvspoof_19",
     "audio":{
         // Audio processing parameters
@@ -30,12 +30,12 @@
     
     "compression": { // data augmentation, if prob == 0.0 no augmentation
         "prob": 0.00, // 0.00 - 1.00
-        "codecs": ["ulaw"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav"
+        "codecs": [ "alaw"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav" TODO: gsm, alaw
     },
     
     "dataset":{
         "num_speakers_in_batch_train": 5, // YT: 5, vctk: 64 // Batch size for training: num_speakers_in_batch*num_utters_per_speaker, if the dataset does not contain enough speaker, all speaker will be in every batch
-        "num_utters_per_speaker_train": 100, // YT: 100, vctk: 10
+        "num_utters_per_speaker_train": 100, // ASVspoof19:?, YT: 100, vctk: 10
         "num_speakers_in_batch_test": 5, // batch size for testing
         "num_utters_per_speaker_test": 100,
         "feature_type": "mfcc", // mfcc, raw // type of feature used for training
@@ -46,10 +46,11 @@
         "cache_path": "/opt/franzi/cache/cache_TTS/" // "/run/media/franzi/ssd/Without_Backup/datasets/cache_TTS/" // where to save and load from for caching
     },
 
+    "output_path": "/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/", // "/run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm_test",  // output path for all training outputs.
     "max_steps": 0, // total number of steps to train, if == 0, it runs without a stopping criterion (-> 10000000000 steps)
-    "print_step": 20, // 20, Number of steps to log traning on console.
-    "steps_plot_stats": 20, // 10, number of steps to plot embeddings.
-    "test_step": 60,     // number of steps to evaluate on test set
+    "steps_print_train": 20, // 20, number of steps to log traning on console.
+    "steps_plot_train": 20, // 20, number of steps to plot training embeddings.
+    "steps_test": 60,     // 60, number of steps to evaluate on test set, the results will be printed and plottet every time
     "num_loader_workers": 4, // number of training data loader processes. Don't set it too big. 4-8 are good values.
 
     "reinit_layers": [],
@@ -62,7 +63,6 @@
     "wd": 0.000001, // Weight decay weight.
     // "checkpoint": true, // If true, it saves checkpoints per "save_step"
     // "save_step": 500, // Number of training steps expected to save traning stats and checkpoints.
-    "output_path": "/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/", // "/run/media/franzi/ssd/Without_Backup/Uni_wb/Masterarbeit/speaker_encoder_models/own_lstm_test",  // output path for all training outputs.
     
     "model": {
         "input_dim": 40,
@@ -72,7 +72,7 @@
         "use_lstm_with_projection": true
     },
     "storage": {
-        "sample_from_storage_p": 0.66,  // the probability with which we'll sample from the DataSet in-memory storage
+        "sample_from_storage_p": 0.00,  // 0.66 // the probability with which we'll sample from the DataSet in-memory storage
         "storage_size": 15,   // the size of the in-memory storage with respect to a single batch
         "additive_noise": 1e-5   // add very small gaussian noise to the data in order to increase robustness
     },
@@ -98,8 +98,7 @@
             {
                 "name": "asvspoof_19", 
                 "path": "DS/LA/ASVspoof2019_LA_train/", // "ASVspoof2019_wav/LA/ASVspoof2019_LA_train",
-                "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt",
-                // "meta_file_test": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
+                "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
             }
             // ,{
             //     "name": "asvspoof_19", 
@@ -108,8 +107,18 @@
             // }
             // ,{
             //     "name": "asvspoof_19", 
-            //     "path": "DS/LA/ASVspoof2019_LA_eval/",
-            //     "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"
+            //     "path": "DS/LA/ASVspoof2019_LA_eval/", // "ASVspoof2019_wav/LA/ASVspoof2019_LA_eval/",
+            //     "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt"
+            // }
+            // ,{
+            //     "name": "asvspoof_21", 
+            //     "path": "ASVspoof2021_LA_eval",
+            //     "meta_file_test": "ASVspoof2021_LA_eval/ASVspoof2021.LA.cm.eval.trl.txt"
+            // }
+            // ,{
+            //     "name": "asvspoof_21", 
+            //     "path": "ASVspoof2021_DF_eval",
+            //     "meta_file_test": "ASVspoof2021_DF_eval/ASVspoof2021.DF.cm.eval.trl.txt"
             // }
         ]
 }

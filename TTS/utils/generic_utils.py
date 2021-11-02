@@ -134,6 +134,7 @@ class KeepAverage():
             self.update_value(key, value)
 
 
+# eg from utils check_config_speaker_encoder()
 def check_argument(name, c, enum_list=None, max_val=None, min_val=None, restricted=False, val_type=None, alternative=None):
     if alternative in c.keys() and c[alternative] is not None:
         return
