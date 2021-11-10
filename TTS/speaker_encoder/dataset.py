@@ -85,7 +85,8 @@ class MyDataset(Dataset):
             frame_rate = {"opus":16000, "gsm":8000, "g722":16000, "wav":16000, "ulaw":8000, "alaw":8000}
             
             if codec in ["opus", "gsm", "g722", "wav"]:
-                sound = AudioSegment.from_file(filename_to_load, format="wav")
+                sound = AudioSegment.from_file(filename_to_load)
+                sound = sound.set_frame_rate(frame_rate[codec])
                 sound.export(intermediate_1, format=codec)
                 sound = AudioSegment.from_file(intermediate_1, codec=codec)
                 sound = sound.set_frame_rate(frame_rate[codec])

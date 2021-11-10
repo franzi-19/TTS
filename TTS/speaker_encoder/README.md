@@ -48,6 +48,6 @@ Below is an example showing embedding results of various speakers. You can gener
     ``` 
 - Generate and plot the embeddings:
     ```
-    python speaker_encoder/compute_embeddings.py --use_cuda true /model/path/best_model.pth.tar model/config/path/config.json dataset/path/ output_path --plot_path folder/where/to/save/plot
+    python speaker_encoder/compute_embeddings.py --use_cuda true /model/path/best_model.pth.tar model/config/path/config.json dataset/path/ output_path --plot_path folder/where/to/save/plot --title title_of_the_plot
     ``` 
 - Watch training on Tensorboard as in TTS

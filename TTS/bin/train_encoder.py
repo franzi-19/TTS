@@ -203,7 +203,7 @@ def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, c
         tb_logger.tb_test_epoch_stats(global_step, train_stats)
         figures = {
             "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                            c.dataset["num_utters_per_speaker_test"], labels),
+                                            c.dataset["num_utters_per_speaker_test"], labels, max_speaker=100),
         }
         tb_logger.tb_test_figures(global_step, figures)
 
@@ -213,13 +213,13 @@ def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, load
             if max_steps == 0: max_steps = 'Infinity'
             print(
                 " > Train: Step:{}/{}  Loss:{:.5f}  AvgLoss:{:.5f}  GradNorm:{:.5f}  "
-                "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f}".format(
+                "StepTime:{:.2f}  LoaderTime:{:.2f}  AvGLoaderTime:{:.2f}  LR:{:.6f} \n".format(
                     global_step, max_steps, loss, avg_loss, grad_norm, step_time,
                     loader_time, avg_loader_time, current_lr),
                 flush=True)
     else:
         print(
-            " > Test: Step:{}/{}  Loss:{:.5f}  StepTime:{:.2f} ".format(
+            " > Test: Step:{}/{}  Loss:{:.5f}  StepTime:{:.2f} \n".format(
                 global_step, max_steps, loss, step_time), flush=True)
 
 def main(args):  # pylint: disable=redefined-outer-name
