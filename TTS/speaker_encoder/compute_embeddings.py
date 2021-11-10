@@ -12,14 +12,14 @@ from TTS.utils.audio import AudioProcessor
 from TTS.utils.io import load_config
 
 
-def plot(embeds, locations, plot_path, labels=None):
+def plot(embeds, locations, plot_path, labels=None, title=None):
     import umap
-    from bokeh.io import output_notebook, save, show
+    from bokeh.io import save, show
     from bokeh.models import (BoxZoomTool, ColumnDataSource, HoverTool,
                               OpenURL, ResetTool, TapTool)
     from bokeh.palettes import Category10
     from bokeh.plotting import figure
-    from bokeh.transform import factor_cmap, factor_mark
+    from bokeh.transform import factor_cmap
 
     model = umap.UMAP()
     projection = model.fit_transform(embeds)
@@ -69,13 +69,17 @@ def plot(embeds, locations, plot_path, labels=None):
     # taptool.callback = OpenURL(url=url)
 
     # show(p)
-    file_path = plot_path + "plot.html"
+    
+    if title: filename = f"plot_{title}.html"
+    else: filename = "plot.html"
+
+    file_path = plot_path + filename
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    save(p, file_path)
+    save(p, file_path, title=title)
     print(f'saved plot at {file_path}')
 
-
-def compute():
+# if number == None: use all files
+def compute(number=1000):
 
     parser = argparse.ArgumentParser(
         description='Compute embedding vectors for each wav file in a dataset. ')
@@ -104,6 +108,9 @@ def compute():
     )
     parser.add_argument(
         '--plot_path', type=str, help='Some of the generated embeddings will be plotted here', default=None
+    )
+    parser.add_argument(
+        '--title', type=str, help='title of the resulting plot', default=None
     )
     args = parser.parse_args()
 
@@ -153,7 +160,9 @@ def compute():
     if args.use_cuda:
         model.cuda()
 
-    # wav_files = random.sample(wav_files, 100000)
+    if number != None:
+        wav_files = random.sample(wav_files, number)
+
     all_embedds = []
     for idx, wav_file in enumerate(tqdm(wav_files)):
         if not os.path.exists(output_files[idx]):
@@ -170,9 +179,8 @@ def compute():
         all_embedds.append(embedd)
 
     if args.plot_path != None:
-        sample_ids = random.sample(range(len(all_embedds)), len(all_embedds)//100)
-        # sample_ids = random.sample(range(len(all_embedds)), 5)
-        plot([all_embedds[s_id][0] for s_id in sample_ids], [output_files[s_id] for s_id in sample_ids], args.plot_path)
+        sample_ids = random.sample(range(len(all_embedds)), len(all_embedds))
+        plot([all_embedds[s_id][0] for s_id in sample_ids], [output_files[s_id] for s_id in sample_ids], args.plot_path, title=args.title)
 
 
 if __name__ == '__main__':
