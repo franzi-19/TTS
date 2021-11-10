@@ -75,8 +75,6 @@ class MyDataset(Dataset):
             audio = self._apply_codec(codec, filename_to_load)
         return audio
 
-    # TODO: maybe do it like the different dataset functions
-    # TODO: check if intermediates are saved at right
     def _apply_codec(self, codec, filename_to_load):
         possible_codecs = ["opus", "gsm", "ulaw", "g722", "alaw", "wav"]
         assert codec in possible_codecs, f"Codec {codec} needs to be one of these: {possible_codecs}"
@@ -99,25 +97,14 @@ class MyDataset(Dataset):
                 decoded = g711.decode_ulaw(ulaw)
                 sf.write(intermediate_2, decoded, frame_rate[codec])
 
-            try:
-                if codec == "alaw":
-                    wav = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
-                    alaw = g711.encode_alaw(wav)
-                    decoded = g711.encode_alaw(alaw)
-                    # sf.write(intermediate_2, decoded, frame_rate[codec])
-            except Exception:
-                print("alaw not working for ", filename_to_load)
-                codec = "wav"
-                intermediate_1 = Path(dirpath) / f"{codec}.{codec}"
-                intermediate_2 = Path(dirpath) / f"{Path(filename_to_load).stem}_{codec}.wav"
-                sound = AudioSegment.from_file(filename_to_load, format="wav")
-                sound.export(intermediate_1, format=codec)
-                sound = AudioSegment.from_file(intermediate_1, codec=codec)
+            elif codec == "alaw":
+                params = ["-acodec", "pcm_alaw"]
+                sound = AudioSegment.from_file(filename_to_load)
                 sound = sound.set_frame_rate(frame_rate[codec])
-                sound.export(intermediate_2, format="wav")
+                sound.export(intermediate_2, format="wav", parameters=params)
             
             assert intermediate_2.exists(), f"Something went wrong while applying the codecs, file {intermediate_2} should exist"
-            audio =  self.ap.load_wav(intermediate_2, sr=self.ap.sample_rate)
+            audio = self.ap.load_wav(intermediate_2, sr=frame_rate[codec])
             
         return audio
 
