@@ -54,7 +54,8 @@ def setup_loader(ap, is_val=False, verbose=False, train=True):
                             verbose=verbose,
                             train=train,
                             codecs=c.compression["codecs"], 
-                            prob=c.compression["prob"])
+                            prob=c.compression["prob"],
+                            trim_silence=c.dataset["trim_silence"])
         c.dataset["num_speakers_in_batch_train"] = len(dataset.speakers) # if number of speakers per batch was adjusted
 
     else:
@@ -72,7 +73,8 @@ def setup_loader(ap, is_val=False, verbose=False, train=True):
                             cache_path=c.dataset["cache_path"],
                             dataset_folder=c.dataset["dataset_folder"],
                             verbose=verbose,
-                            train=train)
+                            train=train,
+                            trim_silence=c.dataset["trim_silence"])
         c.dataset["num_speakers_in_batch_test"] = len(dataset.speakers) # if number of speakers per batch was adjusted
 
     loader = DataLoader(dataset,

@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import g711
+import librosa
 import numpy as np
 import soundfile as sf
 import torch
@@ -16,7 +17,7 @@ class MyDataset(Dataset):
                  storage_size=1, sample_from_storage_p=0.5, additive_noise=0,
                  num_utter_per_speaker=10, skip_speakers=False, feature_type='mfcc', 
                  use_caching=False, cache_path=None, dataset_folder=None, verbose=False, train=True,
-                 codecs=None, prob=0.0):
+                 codecs=None, prob=0.0, trim_silence=True):
         """
         Args:
             ap (TTS.tts.utils.AudioProcessor): audio processor object.
@@ -45,6 +46,7 @@ class MyDataset(Dataset):
         self.additive_noise = float(additive_noise)
         self.codecs = codecs
         self.prob = prob
+        self.trim_silence = trim_silence
         if self.verbose:
             print(f"\n > DataLoader Initialization for {'Training' if train else 'Testing'}")
             print(f" | > Number of found Speakers: {len(self.speakers)}")
@@ -121,23 +123,6 @@ class MyDataset(Dataset):
             return codec
         else:
             return None
-
-    # not used
-    # def load_data(self, idx):
-    #     text, wav_file, speaker_name = self.items[idx]
-    #     wav = np.asarray(self.load_wav(wav_file), dtype=np.float32)
-    #     mel = self.ap.melspectrogram(wav).astype("float32")
-    #     # sample seq_len
-
-    #     assert text.size > 0, self.items[idx][1]
-    #     assert wav.size > 0, self.items[idx][1]
-
-    #     sample = {
-    #         "mel": mel,
-    #         "item_idx": self.items[idx][1],
-    #         "speaker_name": speaker_name,
-    #     }
-    #     return sample
 
     def __parse_items(self):
         """
@@ -237,6 +222,7 @@ class MyDataset(Dataset):
                 feat = self.load_np(save_path)  # 40, 138
             else:
                 wav = self.load_wav(utter, codec) # [23915,]
+                wav = self.apply_trim_silence(wav)
                 if wav.shape[0] < self.seq_len: # remove too short utterances, if no utterances left draw another speaker
                     self.speaker_to_utters[speaker].remove(utter)
                     if len(self.speaker_to_utters[speaker]) == 0:
@@ -260,7 +246,9 @@ class MyDataset(Dataset):
         return feats_, labels_
 
     def get_save_path(self, wav_path, codec):
-        filename = f"{Path(wav_path).stem}_{self.feature_type}_{codec}.npy"
+        if self.trim_silence:
+            add_on = "_trim_sil"
+        filename = f"{Path(wav_path).stem}_{self.feature_type}_{codec}{add_on}.npy"
 
         parent_folder = Path(wav_path).parents[0]
         parent_folder = parent_folder.relative_to(self.dataset_folder)
@@ -270,6 +258,14 @@ class MyDataset(Dataset):
         save_path = parent_folder / Path(filename)
         return save_path
 
+    def apply_trim_silence(self, wav, threshold=30):
+        if self.trim_silence:
+            trimmed, _ = librosa.effects.trim(wav, top_db=threshold)
+            return trimmed
+        else:
+            return wav
+
+    # Not tested
     def collate_without_caching(self, speaker):
         if random.random() < self.sample_from_storage_p and self.storage.full():
             # sample from storage (if full), ignoring the speaker

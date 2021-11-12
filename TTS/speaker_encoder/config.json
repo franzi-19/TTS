@@ -42,6 +42,7 @@
         "voice_len": 1.0,  // 1.6 // size of subset of feature used for training
         "skip_speakers": false, // skip speaker if they have less than 'num_utter_per_speaker' utterances
         "use_caching": true,   // uses caching and not the storage concept
+        "trim_silence": true,   // removes leading and trailing silence in the wav files
         "dataset_folder": "/opt/franzi/datasets/", //"/run/media/franzi/ssd/Without_Backup/datasets/", // parent folder, where all the datasets are saved
         "cache_path": "/opt/franzi/cache/cache_TTS/" // "/run/media/franzi/ssd/Without_Backup/datasets/cache_TTS/" // where to save and load from for caching
     },
