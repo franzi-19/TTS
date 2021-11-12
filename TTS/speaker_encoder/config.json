@@ -1,6 +1,6 @@
 
 {
-    "run_name": "lstm",
+    "run_name": "lstm_trim_silence",
     "run_description": "train speaker encoder with asvspoof_19",
     "audio":{
         // Audio processing parameters
@@ -30,7 +30,7 @@
     
     "compression": { // data augmentation, if prob == 0.0 no augmentation
         "prob": 0.50, // 0.00 - 1.00
-        "codecs": [ "alaw"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav"
+        "codecs": ["opus", "gsm", "ulaw", "g722", "alaw", "wav"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav"
     },
     
     "dataset":{

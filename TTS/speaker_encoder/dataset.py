@@ -247,7 +247,7 @@ class MyDataset(Dataset):
 
     def get_save_path(self, wav_path, codec):
         if self.trim_silence:
-            add_on = "_trim_sil"
+            add_on = "_trim-sil"
         filename = f"{Path(wav_path).stem}_{self.feature_type}_{codec}{add_on}.npy"
 
         parent_folder = Path(wav_path).parents[0]
