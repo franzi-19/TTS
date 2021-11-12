@@ -111,7 +111,8 @@ def test(model, batch, criterion, global_step, max_steps):
 
 def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps, best_loss=float('inf')):
     data_loader_train = setup_loader(ap, verbose=True)
-    data_loader_test_iter = iter(setup_loader(ap, verbose=True, train=False))
+    if meta_data_test != []:
+        data_loader_test_iter = iter(setup_loader(ap, verbose=True, train=False))
 
     epoch_time = 0
     avg_loss = 0
@@ -171,7 +172,7 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps, be
                                     OUT_PATH, global_step)
 
         # run model on test set
-        if global_step % c.steps_test == 0:
+        if global_step % c.steps_test == 0 and meta_data_test != []:
             test(model, next(data_loader_test_iter), criterion, global_step, max_steps)
 
         end_time = time.time()

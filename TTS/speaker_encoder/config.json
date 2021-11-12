@@ -29,8 +29,8 @@
     },
     
     "compression": { // data augmentation, if prob == 0.0 no augmentation
-        "prob": 0.00, // 0.00 - 1.00
-        "codecs": [ "alaw"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav" TODO: gsm, alaw
+        "prob": 0.50, // 0.00 - 1.00
+        "codecs": [ "alaw"] // "opus", "gsm", "ulaw", "g722", "alaw", "wav"
     },
     
     "dataset":{
