@@ -23,7 +23,7 @@ def plot(embeds, locations, plot_path, labels=None, title=None):
 
     model = umap.UMAP()
     projection = model.fit_transform(embeds)
-    if labels != None:
+    if labels != None and labels != []:
         source_wav_stems = ColumnDataSource(
                 data=dict(
                     x = projection.T[0].tolist(),
@@ -52,14 +52,14 @@ def plot(embeds, locations, plot_path, labels=None, title=None):
     # for the coordinates: ("(x,y)", "($x, $y)"),
     # for the index of the embedding / wav file: ("index", "$index"),
 
-    if labels != None:
+    if labels != None and labels != []:
         factors = list(set(labels))
         pal_size = max(len(factors), 3)
         pal = Category10[pal_size]
 
     p = figure(plot_width=600, plot_height=400, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
 
-    if labels != None:
+    if labels != None and labels != []:
         p.circle('x', 'y',  source=source_wav_stems, color=factor_cmap('label', palette=pal, factors=factors),)
     else:
         p.circle('x', 'y',  source=source_wav_stems)
@@ -111,6 +111,9 @@ def compute(number=1000):
     )
     parser.add_argument(
         '--title', type=str, help='title of the resulting plot', default=None
+    )
+    parser.add_argument(
+        '--silence_label', type=bool, help='Use the length of the silence as label', default=False
     )
     args = parser.parse_args()
 
@@ -164,6 +167,7 @@ def compute(number=1000):
         wav_files = random.sample(wav_files, number)
 
     all_embedds = []
+    labels = []
     for idx, wav_file in enumerate(tqdm(wav_files)):
         if not os.path.exists(output_files[idx]):
             mel_spec = ap.melspectrogram(ap.load_wav(wav_file, sr=ap.sample_rate)).T
@@ -176,11 +180,31 @@ def compute(number=1000):
         else:
             embedd = np.load(output_files[idx])
         
+        if args.silence_label:
+            wav = ap.load_wav(wav_file, sr=ap.sample_rate)
+            labels.append(_get_silence_label(wav))
+        
         all_embedds.append(embedd)
 
     if args.plot_path != None:
         sample_ids = random.sample(range(len(all_embedds)), len(all_embedds))
-        plot([all_embedds[s_id][0] for s_id in sample_ids], [output_files[s_id] for s_id in sample_ids], args.plot_path, title=args.title)
+        plot([all_embedds[s_id][0] for s_id in sample_ids], [output_files[s_id] for s_id in sample_ids], args.plot_path, labels=labels, title=args.title)
+
+def _get_silence_label(wav):
+    import librosa
+    trimmed, _ = librosa.effects.trim(wav, top_db=30)
+    silence_length = librosa.get_duration(wav) - librosa.get_duration(trimmed)
+
+    a=0.25
+    b=0.5
+    c=1.5
+    d=2.5
+    if silence_length <= a: return f"0-{a}"
+    elif silence_length <= b: return f"{a}-{b}"
+    elif silence_length <= c: return f"{b}-{c}"
+    elif silence_length <= d: return f"{c}-{d}"
+    elif silence_length > d: return f"{d}-inf"
+
 
 
 if __name__ == '__main__':
