@@ -113,14 +113,17 @@ class MyDataset(Dataset):
 
     def _select_codec(self, codecs, prob):
         # select codec
-        if isinstance(codecs, list):
-            codec = random.sample(codecs, 1)[0]
-        else:
-            codec = codecs
+        if codecs != []:
+            if isinstance(codecs, list):
+                codec = random.sample(codecs, 1)[0]
+            else:
+                codec = codecs
 
-        # if to apply codec or just use normal wav
-        if random.choices([0,1], [1.0-prob, prob], k=1)[0]:
-            return codec
+            # if to apply codec or just use normal wav
+            if random.choices([0,1], [1.0-prob, prob], k=1)[0]:
+                return codec
+            else:
+                return None
         else:
             return None
 
