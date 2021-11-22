@@ -124,24 +124,39 @@ def compute(number=1000):
     data_path = args.data_path
     split_ext = os.path.splitext(data_path)
     sep = args.separator
+    labels = []
 
     if len(split_ext) > 0 and split_ext[1].lower() == '.csv':
-        # Parse CSV
         print(f'CSV file: {data_path}')
-        with open(data_path) as f:
-            wav_path = os.path.join(os.path.dirname(data_path), 'wavs')
-            wav_files = []
-            print(f'Separator is: {sep}')
-            for line in f:
-                components = line.split(sep)
-                if len(components) != 2:
-                    print("Invalid line")
-                    continue
-                wav_file = os.path.join(wav_path, components[0] + '.wav')
-                #print(f'wav_file: {wav_file}')
-                if os.path.exists(wav_file):
-                    wav_files.append(wav_file)
-        print(f'Count of wavs imported: {len(wav_files)}')
+        if "youtube_dataset" in data_path:
+            wav_path = "/opt/franzi/datasets/deepfake_datasets/youtube_dataset_malicious/"
+            wav_files, labels = youtube_dataset(wav_path, data_path)
+
+            print(f'{len(wav_files)} files found, {len(labels)} labels found')
+            from collections import Counter
+            print(f"all unique classes in labels: {Counter(labels).keys()}")
+            print(f"frequency: {Counter(labels).values()}")
+
+            labels = np.array(labels)
+            smaller_classes_idx = np.where((labels == 'Youtube_Speaking of AI') | (labels == 'Youtube_Dessa') | (labels == 'Youtube_millennials')| (labels == 'Youtube_Will Kwan 2'))[0]
+            rest_idx = np.where((labels != 'Youtube_Speaking of AI') & (labels != 'Youtube_Dessa') & (labels != 'Youtube_millennials') & (labels != 'Youtube_Will Kwan 2'))[0]
+            print("smaller_classes_idx size", len(smaller_classes_idx))
+            print("all rest_idx size", len(rest_idx))
+
+            if number != None and len(smaller_classes_idx) < number:
+                rest_idx = random.sample(list(rest_idx), number-len(smaller_classes_idx))
+                print("picked rest_idx size", len(rest_idx))
+                idx = list(rest_idx) + list(smaller_classes_idx)
+                labels = labels[idx]
+            elif number != None:
+                idx = random.sample(list(smaller_classes_idx), number)
+                labels = labels[idx]
+            
+            labels = list(labels)
+
+
+
+
     else:
         # Parse all wav/flac files in data_path
         wav_path = data_path
@@ -164,10 +179,17 @@ def compute(number=1000):
         model.cuda()
 
     if number != None:
-        wav_files = random.sample(wav_files, number)
+        idx = random.sample(range(len(labels)), number)
+        wav_files = list(np.array(wav_files)[idx])
+        if labels != []: 
+            labels = list(np.array(labels)[idx])
+            from collections import Counter
+            print(f"picked unique classes in labels: {Counter(labels).keys()}")
+            print(f"frequency: {Counter(labels).values()}")
+            
+            
 
     all_embedds = []
-    labels = []
     for idx, wav_file in enumerate(tqdm(wav_files)):
         if not os.path.exists(output_files[idx]):
             mel_spec = ap.melspectrogram(ap.load_wav(wav_file, sr=ap.sample_rate)).T
@@ -204,6 +226,37 @@ def _get_silence_label(wav):
     elif silence_length <= c: return f"{b}-{c}"
     elif silence_length <= d: return f"{c}-{d}"
     elif silence_length > d: return f"{d}-inf"
+
+def youtube_dataset(root_path, meta_file):
+    """Normalize deepfake youtube dataset.
+    https://github.com/franzi-19/deepfake_datasets
+    """
+    wav_files = []
+    labels = []
+    with open(meta_file, "r") as file:
+        next(file) # skip header
+        for line in file:
+            line = line.strip()
+            infos = line.split(',')
+
+            if len(infos) == 10:
+                speaker, _, attack_id, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
+            elif len(infos) == 9:
+                speaker, _, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
+                attack_id = 'benign'
+            else:
+                raise AssertionError('Metadata information file is malformed. Each line should have 9 or 10 columns.')
+
+            wav_folder = os.path.join(root_path, speaker.replace(" ", "_"), url, 'wav/')
+            assert os.path.exists(wav_folder), f'Failure: Folder {wav_folder} is missing'
+
+            for filename in os.listdir(wav_folder):
+                filepath = os.path.join(wav_folder, filename)
+                assert os.path.exists(filepath), f'Failure: File {filepath} is missing'
+
+                wav_files.append(filepath)
+                labels.append("Youtube_" + attack_id)
+    return wav_files, labels
 
 
 
