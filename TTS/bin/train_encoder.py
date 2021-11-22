@@ -39,43 +39,43 @@ print(" > Number of GPUs: ", num_gpus)
 def setup_loader(ap, is_val=False, verbose=False, train=True):
     if train:
         dataset = MyDataset(ap,
-                            meta_data_eval if is_val else meta_data_train,
-                            voice_len=c.dataset["voice_len"],
-                            num_utter_per_speaker=c.dataset["num_utters_per_speaker_train"],
-                            num_speakers_in_batch=c.dataset["num_speakers_in_batch_train"],
-                            skip_speakers=c.dataset["skip_speakers"],
+                            meta_data_train,
+                            voice_len=c.dataset_settings["voice_len"],
+                            num_utter_per_speaker=c.dataset_settings["num_utters_per_speaker_train"],
+                            num_speakers_in_batch=c.dataset_settings["num_speakers_in_batch_train"],
+                            skip_speakers=c.dataset_settings["skip_speakers"],
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
-                            feature_type=c.dataset["feature_type"],
-                            use_caching=c.dataset["use_caching"],
-                            cache_path=c.dataset["cache_path"],
-                            dataset_folder=c.dataset["dataset_folder"],
+                            feature_type=c.dataset_settings["feature_type"],
+                            use_caching=c.dataset_settings["use_caching"],
+                            cache_path=c.dataset_settings["cache_path"],
+                            dataset_folder=c.dataset_settings["dataset_folder"],
                             verbose=verbose,
                             train=train,
                             codecs=c.compression["codecs"], 
                             prob=c.compression["prob"],
-                            trim_silence=c.dataset["trim_silence"])
-        c.dataset["num_speakers_in_batch_train"] = len(dataset.speakers) # if number of speakers per batch was adjusted
+                            trim_silence=c.dataset_settings["trim_silence"])
+        c.dataset_settings["num_speakers_in_batch_train"] = len(dataset.speakers) # if number of speakers per batch was adjusted
 
     else:
         dataset = MyDataset(ap,
                             meta_data_test,
-                            voice_len=c.dataset["voice_len"],
-                            num_utter_per_speaker=c.dataset["num_utters_per_speaker_test"],
-                            num_speakers_in_batch=c.dataset["num_speakers_in_batch_test"],
-                            skip_speakers=c.dataset["skip_speakers"],
+                            voice_len=c.dataset_settings["voice_len"],
+                            num_utter_per_speaker=c.dataset_settings["num_utters_per_speaker_test"],
+                            num_speakers_in_batch=c.dataset_settings["num_speakers_in_batch_test"],
+                            skip_speakers=c.dataset_settings["skip_speakers"],
                             storage_size=c.storage["storage_size"],
                             sample_from_storage_p=c.storage["sample_from_storage_p"],
                             additive_noise=c.storage["additive_noise"],
-                            feature_type=c.dataset["feature_type"],
-                            use_caching=c.dataset["use_caching"],
-                            cache_path=c.dataset["cache_path"],
-                            dataset_folder=c.dataset["dataset_folder"],
+                            feature_type=c.dataset_settings["feature_type"],
+                            use_caching=c.dataset_settings["use_caching"],
+                            cache_path=c.dataset_settings["cache_path"],
+                            dataset_folder=c.dataset_settings["dataset_folder"],
                             verbose=verbose,
                             train=train,
-                            trim_silence=c.dataset["trim_silence"])
-        c.dataset["num_speakers_in_batch_test"] = len(dataset.speakers) # if number of speakers per batch was adjusted
+                            trim_silence=c.dataset_settings["trim_silence"])
+        c.dataset_settings["num_speakers_in_batch_test"] = len(dataset.speakers) # if number of speakers per batch was adjusted
 
     loader = DataLoader(dataset,
                         batch_size=len(dataset.speakers),
@@ -99,11 +99,11 @@ def test(model, batch, criterion, global_step, max_steps):
     # forward pass model
     outputs = model(inputs)
 
-    x=outputs.view(c.dataset["num_speakers_in_batch_test"],
-                        outputs.shape[0] // c.dataset["num_speakers_in_batch_test"], -1)
+    x=outputs.view(c.dataset_settings["num_speakers_in_batch_test"],
+                        outputs.shape[0] // c.dataset_settings["num_speakers_in_batch_test"], -1)
     loss = criterion(
-        outputs.view(c.dataset["num_speakers_in_batch_test"],
-                        outputs.shape[0] // c.dataset["num_speakers_in_batch_test"], -1))
+        outputs.view(c.dataset_settings["num_speakers_in_batch_test"],
+                        outputs.shape[0] // c.dataset_settings["num_speakers_in_batch_test"], -1))
 
     step_time = time.time() - start_time
 
@@ -148,8 +148,8 @@ def train(model, criterion, optimizer, scheduler, ap, global_step, max_steps, be
 
         # loss computation
         loss = criterion(
-            outputs.view(c.dataset["num_speakers_in_batch_train"],
-                         outputs.shape[0] // c.dataset["num_speakers_in_batch_train"], -1))
+            outputs.view(c.dataset_settings["num_speakers_in_batch_train"],
+                         outputs.shape[0] // c.dataset_settings["num_speakers_in_batch_train"], -1))
         loss.backward()
 
         grad_norm, _ = check_update(model, c.grad_clip)
@@ -194,7 +194,7 @@ def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, c
             tb_logger.tb_train_epoch_stats(global_step, train_stats)
             figures = {
                 "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                                c.dataset["num_utters_per_speaker_train"], labels),
+                                                c.dataset_settings["num_utters_per_speaker_train"], labels),
             }
             tb_logger.tb_train_figures(global_step, figures)
     else:
@@ -203,9 +203,10 @@ def _plot_to_tensorboard(global_step, c, tb_logger, outputs, labels, avg_loss, c
             "step_time": step_time
         }
         tb_logger.tb_test_epoch_stats(global_step, train_stats)
+        embedd = outputs.detach().cpu().numpy()
         figures = {
-            "UMAP Plot": plot_embeddings(outputs.detach().cpu().numpy(),
-                                            c.dataset["num_utters_per_speaker_test"], labels, max_speaker=100),
+            "UMAP Plot": plot_embeddings(embedd,
+                                            c.dataset_settings["num_utters_per_speaker_test"], labels, max_utter=len(embedd)),
         }
         tb_logger.tb_test_figures(global_step, figures)
 
@@ -227,7 +228,6 @@ def _print_to_console(global_step, c, loss, avg_loss, grad_norm, step_time, load
 def main(args):  # pylint: disable=redefined-outer-name
     # pylint: disable=global-variable-undefined
     global meta_data_train
-    global meta_data_eval
     global meta_data_test
 
     ap = AudioProcessor(**c.audio)
@@ -288,7 +288,7 @@ def main(args):  # pylint: disable=redefined-outer-name
     print("\n > Model has {} parameters".format(num_params), flush=True)
 
     # pylint: disable=redefined-outer-name
-    meta_data_train, meta_data_eval, meta_data_test = load_meta_data(c.datasets, c.dataset['dataset_folder'])
+    meta_data_train, meta_data_test = load_meta_data(c.datasets, c.dataset_settings['dataset_folder'], c.dataset_settings['split_train_data'])
 
     global_step = args.restore_step
     _, global_step = train(model, criterion, optimizer, scheduler, ap,
