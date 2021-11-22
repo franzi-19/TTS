@@ -38,7 +38,8 @@ def load_meta_data(datasets, dataset_folder, split_info):
         meta_data_train_all += meta_data_train
         meta_data_test_all += meta_data_test
 
-    meta_data_train, meta_data_test = split_train_set(split_info, meta_data_train_all)
+    meta_data_train_all, meta_data_test = split_train_set(split_info, meta_data_train_all)
+    meta_data_test_all += meta_data_test
 
     return meta_data_train_all, meta_data_test_all
 
@@ -49,16 +50,16 @@ def get_preprocessor_by_name(name):
     return getattr(thismodule, name.lower())
 
 def split_train_set(split_info, meta_data_train_all):
-    meta_data_train = []
+    meta_data_train = meta_data_train_all
     meta_data_test = []
 
     if split_info != None:
         assert split_info in ["no_split", "random_10_percent", "split_4_speaker"], f"split_train_data needs to be in {['no_split', 'random_10_percent', 'split_4_speaker']}"
 
         if split_info == "random_10_percent":
-            idx_test = random.sample(range(len(meta_data_train_all)), len(meta_data_train_all)*0.1)
+            idx_test = random.sample(range(len(meta_data_train_all)), int(len(meta_data_train_all)*0.1))
             test_selected = np.array(meta_data_train_all)[idx_test]
-            train_selected = np.delete(np.array(meta_data_train_all), idx_test)
+            train_selected = np.delete(np.array(meta_data_train_all), idx_test, axis=0)
 
             meta_data_test = list(test_selected)
             meta_data_train = list(train_selected)
@@ -68,15 +69,17 @@ def split_train_set(split_info, meta_data_train_all):
             selected_items_idx = _get_all_id_from_classes(meta_data_train_all, selected_classes)
 
             test_selected = np.array(meta_data_train_all)[selected_items_idx]
-            train_selected = np.delete(np.array(meta_data_train_all), selected_items_idx)
+            train_selected = np.delete(np.array(meta_data_train_all), selected_items_idx, axis=0)
 
             meta_data_test = list(test_selected)
             meta_data_train = list(train_selected)
+
+        print(f" | >> Train/Test split: From all {len(meta_data_train_all)} training data using {len(meta_data_train)} files for training and {len(meta_data_test)} files for testing")
             
     return meta_data_train, meta_data_test
 
-def _get_classes(list):
-    return list(set([_get_label(item) for item in list]))
+def _get_classes(all):
+    return list(set([_get_label(item) for item in all]))
 
 def _get_label(item):
     _, _, label = item

@@ -37,7 +37,7 @@
         "num_speakers_in_batch_train": 4, // ASVspoof19_all: 4, YT: 5, vctk: 64 // Batch size for training: num_speakers_in_batch*num_utters_per_speaker, if the dataset does not contain enough speaker, all speaker will be in every batch
         "num_utters_per_speaker_train": 64, // ASVspoof19_all: 64, YT: 100, vctk: 10
         "num_speakers_in_batch_test": 1, // batch size for testing
-        "num_utters_per_speaker_test": 500,
+        "num_utters_per_speaker_test": 500, // 500
         "feature_type": "mfcc", // mfcc, raw // type of feature used for training
         "voice_len": 1.0,  // 1.6 // size of subset of feature used for training
         "skip_speakers": false, // skip speaker if they have less than 'num_utter_per_speaker' utterances
