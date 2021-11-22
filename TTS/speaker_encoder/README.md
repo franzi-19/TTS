@@ -20,7 +20,7 @@ Below is an example showing embedding results of various speakers. You can gener
 
 ## Usage
 - Start your virtual enviroment
-- Define 'TTS/speaker_encoder/config.json' for your needs. Note that, audio parameters should match your TTS model and min. one dataset needs to be specified
+- Define 'TTS/speaker_encoder/config.json' for your needs. Note that, audio parameters should match your TTS model and min. one dataset with "meta_file_train" needs to be specified
     - specify a dataset:
     ```
      {
