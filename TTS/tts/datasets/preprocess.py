@@ -1,17 +1,17 @@
 import os
-from glob import glob
+import random
 import re
 import sys
+from glob import glob
 from pathlib import Path
 
+import numpy as np
 from tqdm import tqdm
-
 from TTS.tts.utils.generic_utils import split_dataset
 
 
-def load_meta_data(datasets, dataset_folder):
+def load_meta_data(datasets, dataset_folder, split_info):
     meta_data_train_all = []
-    meta_data_eval_all = []
     meta_data_test_all = []
 
     for dataset in datasets:
@@ -19,40 +19,72 @@ def load_meta_data(datasets, dataset_folder):
         root_path = Path(dataset_folder) / Path(dataset['path'])
 
         meta_file_train = dataset['meta_file_train'] if 'meta_file_train' in dataset else None
-        meta_file_val = dataset['meta_file_val'] if 'meta_file_val' in dataset else None
         meta_file_test = dataset['meta_file_test'] if 'meta_file_test' in dataset else None
 
         meta_data_train = []
-        meta_data_eval = [] 
         meta_data_test = []
 
         preprocessor = get_preprocessor_by_name(name)
 
         if meta_file_train is not None:
             meta_data_train = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_train))
-
-        if meta_file_val is not None:
-            meta_data_eval = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_val))
-        elif meta_file_train is not None:
-            meta_data_eval, meta_data_train = split_dataset(meta_data_train)
             
         if meta_file_test is not None:
             meta_data_test = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_test))
 
         print(f" | > Using {len(meta_data_train)} files in {Path(root_path).resolve()} for training")
-        print(f" | > Using {len(meta_data_eval)} files in {Path(root_path).resolve()} for evaluating")
         print(f" | > Using {len(meta_data_test)} files in {Path(root_path).resolve()} for testing")
 
         meta_data_train_all += meta_data_train
-        meta_data_eval_all += meta_data_eval
         meta_data_test_all += meta_data_test
-    return meta_data_train_all, meta_data_eval_all, meta_data_test_all
+
+    meta_data_train, meta_data_test = split_train_set(split_info, meta_data_train_all)
+
+    return meta_data_train_all, meta_data_test_all
 
 
 def get_preprocessor_by_name(name):
     """Returns the respective preprocessing function."""
     thismodule = sys.modules[__name__]
     return getattr(thismodule, name.lower())
+
+def split_train_set(split_info, meta_data_train_all):
+    meta_data_train = []
+    meta_data_test = []
+
+    if split_info != None:
+        assert split_info in ["no_split", "random_10_percent", "split_4_speaker"], f"split_train_data needs to be in {['no_split', 'random_10_percent', 'split_4_speaker']}"
+
+        if split_info == "random_10_percent":
+            idx_test = random.sample(range(len(meta_data_train_all)), len(meta_data_train_all)*0.1)
+            test_selected = np.array(meta_data_train_all)[idx_test]
+            train_selected = np.delete(np.array(meta_data_train_all), idx_test)
+
+            meta_data_test = list(test_selected)
+            meta_data_train = list(train_selected)
+
+        elif split_info == "split_4_speaker":
+            selected_classes = random.sample(_get_classes(meta_data_train_all), 4)
+            selected_items_idx = _get_all_id_from_classes(meta_data_train_all, selected_classes)
+
+            test_selected = np.array(meta_data_train_all)[selected_items_idx]
+            train_selected = np.delete(np.array(meta_data_train_all), selected_items_idx)
+
+            meta_data_test = list(test_selected)
+            meta_data_train = list(train_selected)
+            
+    return meta_data_train, meta_data_test
+
+def _get_classes(list):
+    return list(set([_get_label(item) for item in list]))
+
+def _get_label(item):
+    _, _, label = item
+    return label
+
+def _get_all_id_from_classes(all, selected_classes):
+    return [idx for idx, item in enumerate(all) if _get_label(item) in selected_classes]
+
 
 ############### dataset functions
 
