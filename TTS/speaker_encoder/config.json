@@ -104,8 +104,8 @@
             }
             // ,{
             //     "name": "asvspoof_19", 
-            //     "path": "DS/LA/ASVspoof2019_LA_dev/",
-            //     "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt"
+            //     "path":  "DS/LA/ASVspoof2019_LA_dev/", // "ASVspoof2019_wav/LA/ASVspoof2019_LA_dev",
+            //     "meta_file_train": "DS/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt" // "ASVspoof2019_wav/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt"
             // }
             // ,{
             //     "name": "asvspoof_19", 
