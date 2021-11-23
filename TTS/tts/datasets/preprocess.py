@@ -74,7 +74,7 @@ def split_train_set(split_info, meta_data_train_all):
             meta_data_test = list(test_selected)
             meta_data_train = list(train_selected)
 
-        print(f" | >> Train/Test split: From all {len(meta_data_train_all)} training data using {len(meta_data_train)} files for training and {len(meta_data_test)} files for testing")
+        print(f" | > Train/Test split: Splitting all {len(meta_data_train_all)} found training data in {len(meta_data_train)} files for training and {len(meta_data_test)} files for testing")
             
     return meta_data_train, meta_data_test
 
