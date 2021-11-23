@@ -20,8 +20,16 @@ Below is an example showing embedding results of various speakers. You can gener
 
 ## Usage
 - Start your virtual enviroment
-- Define 'TTS/speaker_encoder/config.json' for your needs. Note that, audio parameters should match your TTS model
-    - make sure that your desired dataset is mentioned
+- Define 'TTS/speaker_encoder/config.json' for your needs. Note that, audio parameters should match your TTS model and min. one dataset with "meta_file_train" needs to be specified
+    - specify a dataset:
+    ```
+     {
+        "name": "read-in function", // typically similar to the dataset name 
+        "path": "path to the wav/flac files inside the generall dataset folder",
+        "meta_file_train": "path to the file with the training labels"
+        "meta_file_test": "path to the file with the test labels" 
+    }
+    ``` 
 - Example training call:
     ```
     python -m TTS.bin.train_encoder \
@@ -40,6 +48,6 @@ Below is an example showing embedding results of various speakers. You can gener
     ``` 
 - Generate and plot the embeddings:
     ```
-    python speaker_encoder/compute_embeddings.py --use_cuda true /model/path/best_model.pth.tar model/config/path/config.json dataset/path/ output_path --plot_path folder/where/to/save/plot
+    python speaker_encoder/compute_embeddings.py --use_cuda true /model/path/best_model.pth.tar model/config/path/config.json dataset/path/ output_path --plot_path folder/where/to/save/plot --title title_of_the_plot
     ``` 
 - Watch training on Tensorboard as in TTS

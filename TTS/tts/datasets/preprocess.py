@@ -1,17 +1,17 @@
 import os
-from glob import glob
+import random
 import re
 import sys
+from glob import glob
 from pathlib import Path
 
+import numpy as np
 from tqdm import tqdm
-
 from TTS.tts.utils.generic_utils import split_dataset
 
 
-def load_meta_data(datasets, dataset_folder):
+def load_meta_data(datasets, dataset_folder, split_info):
     meta_data_train_all = []
-    meta_data_eval_all = []
     meta_data_test_all = []
 
     for dataset in datasets:
@@ -19,48 +19,151 @@ def load_meta_data(datasets, dataset_folder):
         root_path = Path(dataset_folder) / Path(dataset['path'])
 
         meta_file_train = dataset['meta_file_train'] if 'meta_file_train' in dataset else None
-        meta_file_val = dataset['meta_file_val'] if 'meta_file_val' in dataset else None
         meta_file_test = dataset['meta_file_test'] if 'meta_file_test' in dataset else None
 
         meta_data_train = []
-        meta_data_eval = [] 
         meta_data_test = []
 
         preprocessor = get_preprocessor_by_name(name)
-        # print(root_path, "-", Path(dataset_folder), "-", (Path(dataset_folder) / Path(meta_file_train)))
 
         if meta_file_train is not None:
             meta_data_train = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_train))
-
-        if meta_file_val is not None:
-            meta_data_eval = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_val))
-        elif meta_file_train is not None:
-            meta_data_eval, meta_data_train = split_dataset(meta_data_train)
             
         if meta_file_test is not None:
             meta_data_test = preprocessor(root_path, Path(dataset_folder) / Path(meta_file_test))
 
-        print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()} for training")
-        print(f" | > Found {len(meta_data_eval)} files in {Path(root_path).resolve()} for evaluating")
-        print(f" | > Found {len(meta_data_test)} files in {Path(root_path).resolve()} for testing")
-
-        # meta_data_train = preprocessor(root_path, meta_file_train)
-        # print(f" | > Found {len(meta_data_train)} files in {Path(root_path).resolve()}")
-        # if meta_file_val is None:
-        #     meta_data_eval, meta_data_train = split_dataset(meta_data_train)
-        # else:
-        #     meta_data_eval = preprocessor(root_path, meta_file_val)
+        print(f" | > Using {len(meta_data_train)} files in {Path(root_path).resolve()} for training")
+        print(f" | > Using {len(meta_data_test)} files in {Path(root_path).resolve()} for testing")
 
         meta_data_train_all += meta_data_train
-        meta_data_eval_all += meta_data_eval
         meta_data_test_all += meta_data_test
-    return meta_data_train_all, meta_data_eval_all, meta_data_test_all
+
+    meta_data_train_all, meta_data_test = split_train_set(split_info, meta_data_train_all)
+    meta_data_test_all += meta_data_test
+
+    return meta_data_train_all, meta_data_test_all
 
 
 def get_preprocessor_by_name(name):
     """Returns the respective preprocessing function."""
     thismodule = sys.modules[__name__]
     return getattr(thismodule, name.lower())
+
+def split_train_set(split_info, meta_data_train_all):
+    meta_data_train = meta_data_train_all
+    meta_data_test = []
+
+    if split_info != None:
+        assert split_info in ["no_split", "random_10_percent", "split_4_speaker"], f"split_train_data needs to be in {['no_split', 'random_10_percent', 'split_4_speaker']}"
+
+        if split_info == "random_10_percent":
+            idx_test = random.sample(range(len(meta_data_train_all)), int(len(meta_data_train_all)*0.1))
+            test_selected = np.array(meta_data_train_all)[idx_test]
+            train_selected = np.delete(np.array(meta_data_train_all), idx_test, axis=0)
+
+            meta_data_test = list(test_selected)
+            meta_data_train = list(train_selected)
+
+        elif split_info == "split_4_speaker":
+            selected_classes = random.sample(_get_classes(meta_data_train_all), 4)
+            selected_items_idx = _get_all_id_from_classes(meta_data_train_all, selected_classes)
+
+            test_selected = np.array(meta_data_train_all)[selected_items_idx]
+            train_selected = np.delete(np.array(meta_data_train_all), selected_items_idx, axis=0)
+
+            meta_data_test = list(test_selected)
+            meta_data_train = list(train_selected)
+
+        print(f" | > Train/Test split: Splitting all {len(meta_data_train_all)} found training data in {len(meta_data_train)} files for training and {len(meta_data_test)} files for testing")
+            
+    return meta_data_train, meta_data_test
+
+def _get_classes(all):
+    return list(set([_get_label(item) for item in all]))
+
+def _get_label(item):
+    _, _, label = item
+    return label
+
+def _get_all_id_from_classes(all, selected_classes):
+    return [idx for idx, item in enumerate(all) if _get_label(item) in selected_classes]
+
+
+############### dataset functions
+
+def youtube_dataset(root_path, meta_file):
+    """Normalize deepfake youtube dataset.
+    https://github.com/franzi-19/deepfake_datasets
+    """
+    items = []
+    with open(meta_file, "r") as file:
+        next(file) # skip header
+        for line in file:
+            line = line.strip()
+            infos = line.split(',')
+
+            if len(infos) == 10:
+                speaker, _, attack_id, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
+            elif len(infos) == 9:
+                speaker, _, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
+                attack_id = 'benign'
+            else:
+                raise AssertionError('Metadata information file is malformed. Each line should have 9 or 10 columns.')
+
+            wav_folder = os.path.join(root_path, speaker.replace(" ", "_"), url, 'wav/')
+            assert os.path.exists(wav_folder), f'Failure: Folder {wav_folder} is missing'
+
+            for filename in os.listdir(wav_folder):
+                filepath = os.path.join(wav_folder, filename)
+                assert os.path.exists(filepath), f'Failure: File {filepath} is missing'
+
+                items.append(['', filepath,  "Youtube_" + attack_id])
+    return items
+
+def asvspoof_19(root_path, meta_file):
+    """Normalize asvspoof19 dataset.
+    :param root_path: path to dataset
+    :param meta_file: Path from root_path to asvspoof info file (The .txt that has locations and info of every sample)
+    """
+    items = []
+    with open(os.path.join(root_path, meta_file), 'r') as file:
+        for line in file.readlines():
+            line = line.strip()
+            infos = line.split(' ')
+            
+            if len(infos) != 5:
+                raise AssertionError('ASVspoof information file is malformed. Each line should have 5 columns.')
+
+            _, file_name, _, attack_id, _ = infos
+
+            wav_file = os.path.join(root_path, 'flac' , file_name + '.wav')
+            if not os.path.exists(wav_file):
+                wav_file = os.path.join(root_path, 'flac' , file_name + '.flac')
+            assert os.path.exists(wav_file), f'Failure: File {wav_file} is missing'
+
+            items.append(["", wav_file, "ASVSPOOF19_" + attack_id]) # text, wav_file_path, label
+    return items
+
+def asvspoof_21(root_path, meta_file):
+    """Normalize asvspoof21 dataset.
+    https://zenodo.org/record/4837263 or https://zenodo.org/record/4835108
+    """
+    items = []
+    with open(os.path.join(root_path, meta_file), 'r') as file:
+        for line in file.readlines():
+            file_name = line.strip()
+
+            wav_file = os.path.join(root_path, 'flac' , file_name + '.wav')
+            if not os.path.exists(wav_file):
+                wav_file = os.path.join(root_path, 'flac' , file_name + '.flac')
+
+            # TODO: add assert back in
+            # assert os.path.exists(wav_file), f'Failure: File {wav_file} is missing'
+            if not os.path.exists(wav_file):
+                continue
+
+            items.append(["", wav_file, "ASVSPOOF21_unknown"]) 
+    return items
 
 
 def tweb(root_path, meta_file):
@@ -260,59 +363,6 @@ def brspeech(root_path, meta_file):
             text = cols[2]
             speaker_name = cols[3]
             items.append([text, wav_file, speaker_name])
-    return items
-
-def youtube_dataset(root_path, meta_file):
-    """Normalize deepfake youtube dataset.
-    https://github.com/franzi-19/deepfake_datasets
-    """
-    items = []
-    with open(meta_file, "r") as file:
-        next(file) # skip header
-        for line in file:
-            line = line.strip()
-            infos = line.split(',')
-
-            if len(infos) == 10:
-                speaker, _, attack_id, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
-            elif len(infos) == 9:
-                speaker, _, url, _, _, _, _, _, _ = infos # speaker,language,channel,url,start,end,label,quality,topic
-                attack_id = 'benign'
-            else:
-                raise AssertionError('Metadata information file is malformed. Each line should have 9 or 10 columns.')
-
-            wav_folder = os.path.join(root_path, speaker.replace(" ", "_"), url, 'wav/')
-            assert os.path.exists(wav_folder), f'Failure: Folder {wav_folder} is missing'
-
-            for filename in os.listdir(wav_folder):
-                filepath = os.path.join(wav_folder, filename)
-                assert os.path.exists(filepath), f'Failure: File {filepath} is missing'
-
-                items.append(['', filepath,  "Youtube_" + attack_id])
-    return items
-
-def asvspoof_19(root_path, meta_file):
-    """Normalize asvspoof19 dataset.
-    :param root_path: path to dataset
-    :param meta_file: Path from root_path to asvspoof info file (The .txt that has locations and info of every sample)
-    """
-    items = []
-    with open(os.path.join(root_path, meta_file), 'r') as file:
-        for line in file.readlines():
-            line = line.strip()
-            infos = line.split(' ')
-            
-            if len(infos) != 5:
-                raise AssertionError('ASVspoof information file is malformed. Each line should have 5 columns.')
-
-            _, file_name, _, attack_id, _ = infos
-
-            wav_file = os.path.join(root_path, 'flac' , file_name + '.wav')
-            if not os.path.exists(wav_file):
-                wav_file = os.path.join(root_path, 'flac' , file_name + '.flac')
-            assert os.path.exists(wav_file), f'Failure: File {wav_file} is missing'
-
-            items.append(["", wav_file, "ASVSPOOF19_" + attack_id]) # text, wav_file_path, label
     return items
 
 def vctk(root_path, meta_files=None, wavs_path='wav48'):

@@ -32,23 +32,23 @@ def check_config_speaker_encoder(c):
     check_argument('num_loader_workers', c, restricted=True, val_type=int)
     check_argument('wd', c, restricted=True, val_type=float, min_val=0.0, max_val=1.0)
 
-    # dataset parameter
-    check_argument('dataset', c, restricted=True, val_type=dict)
-    check_argument('num_speakers_in_batch_train', c['dataset'], restricted=True, val_type=int, min_val=1)
-    check_argument('num_utters_per_speaker_train', c['dataset'], restricted=True, val_type=int, min_val=1)
-    check_argument('num_speakers_in_batch_test', c['dataset'], restricted=True, val_type=int, min_val=1)
-    check_argument('num_utters_per_speaker_test', c['dataset'], restricted=True, val_type=int, min_val=1)
-    check_argument('feature_type', c['dataset'], enum_list=['mfcc', 'raw'], restricted=True, val_type=str)
-    check_argument('voice_len', c['dataset'], restricted=True, val_type=float, min_val=0.1)
-    check_argument('skip_speakers', c['dataset'], restricted=True, val_type=bool)
-    check_argument('use_caching', c['dataset'], restricted=True, val_type=bool)
-    check_argument('cache_path', c['dataset'], restricted=True, val_type=str)
+    # dataset settings parameter
+    check_argument('dataset_settings', c, restricted=True, val_type=dict)
+    check_argument('num_speakers_in_batch_train', c['dataset_settings'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_utters_per_speaker_train', c['dataset_settings'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_speakers_in_batch_test', c['dataset_settings'], restricted=True, val_type=int, min_val=1)
+    check_argument('num_utters_per_speaker_test', c['dataset_settings'], restricted=True, val_type=int, min_val=1)
+    check_argument('feature_type', c['dataset_settings'], enum_list=['mfcc', 'raw'], restricted=True, val_type=str)
+    check_argument('voice_len', c['dataset_settings'], restricted=True, val_type=float, min_val=0.1)
+    check_argument('skip_speakers', c['dataset_settings'], restricted=True, val_type=bool)
+    check_argument('use_caching', c['dataset_settings'], restricted=True, val_type=bool)
+    check_argument('cache_path', c['dataset_settings'], restricted=True, val_type=str)
+    check_argument('split_train_data', c['dataset_settings'], restricted=True, val_type=str)
 
     # checkpoint and output parameters
-    check_argument('steps_plot_stats', c, restricted=True, val_type=int)
-    # check_argument('checkpoint', c, restricted=True, val_type=bool)
-    # check_argument('save_step', c, restricted=True, val_type=int)
-    check_argument('print_step', c, restricted=True, val_type=int)
+    check_argument('steps_plot_train', c, restricted=True, val_type=int)
+    check_argument('steps_print_train', c, restricted=True, val_type=int)
+    check_argument('steps_test', c, restricted=True, val_type=int)
     check_argument('output_path', c, restricted=True, val_type=str)
 
     # model parameters

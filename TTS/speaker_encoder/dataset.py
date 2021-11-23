@@ -1,25 +1,30 @@
 import queue
 import random
+import tempfile
 from pathlib import Path
 
-import numpy
+import g711
+import librosa
 import numpy as np
+import soundfile as sf
 import torch
+from pydub import AudioSegment
 from torch.utils.data import Dataset
-from tqdm import tqdm
 
 
 class MyDataset(Dataset):
     def __init__(self, ap, meta_data, voice_len=1.6, num_speakers_in_batch=64,
                  storage_size=1, sample_from_storage_p=0.5, additive_noise=0,
                  num_utter_per_speaker=10, skip_speakers=False, feature_type='mfcc', 
-                 use_caching=False, cache_path=None, dataset_folder=None, verbose=False, train=True):
+                 use_caching=False, cache_path=None, dataset_folder=None, verbose=False, train=True,
+                 codecs=None, prob=0.0, trim_silence=True):
         """
         Args:
             ap (TTS.tts.utils.AudioProcessor): audio processor object.
             meta_data (list): list of dataset instances.
             seq_len (int): voice segment length in seconds.
             verbose (bool): print diagnostic information.
+            TODO
         """
         self.items = meta_data # items from preprocess functions
         self.sample_rate = ap.sample_rate
@@ -39,13 +44,16 @@ class MyDataset(Dataset):
         self.storage = queue.Queue(maxsize=storage_size*num_speakers_in_batch)
         self.sample_from_storage_p = float(sample_from_storage_p)
         self.additive_noise = float(additive_noise)
+        self.codecs = codecs
+        self.prob = prob
+        self.trim_silence = trim_silence
         if self.verbose:
             print(f"\n > DataLoader Initialization for {'Training' if train else 'Testing'}")
             print(f" | > Number of found Speakers: {len(self.speakers)}")
             if num_speakers_in_batch <= len(self.speakers):
                 print(f" | > Speakers per Batch: {num_speakers_in_batch}")
             else:
-                print(f" | > Speakers per Batch: {len(self.speakers)}(adjusted because specified number was too high)")
+                print(f" | > Speakers per Batch: {len(self.speakers)} (adjusted because specified number was too high)")
             if not use_caching:
                 print(f" | > Storage Size: {self.storage.maxsize} speakers, each with {num_utter_per_speaker} utters")
                 print(f" | > Sample_from_storage_p : {self.sample_from_storage_p}")
@@ -58,26 +66,66 @@ class MyDataset(Dataset):
                 print(f" | > No caching used")
             print("")
 
-    def load_wav(self, filename):
-        audio = self.ap.load_wav(filename, sr=self.ap.sample_rate)
+    def load_wav(self, filename_to_load, codec=None):
+        """
+        always returns a wav file
+        if codecs are given, it applies given codec first and then returns the modified wav
+        """
+        if codec == None:
+            audio = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+        else:
+            audio = self._apply_codec(codec, filename_to_load)
         return audio
 
-    # not used
-    def load_data(self, idx):
-        text, wav_file, speaker_name = self.items[idx]
-        wav = np.asarray(self.load_wav(wav_file), dtype=np.float32)
-        mel = self.ap.melspectrogram(wav).astype("float32")
-        # sample seq_len
+    def _apply_codec(self, codec, filename_to_load):
+        possible_codecs = ["opus", "gsm", "ulaw", "g722", "alaw", "wav"]
+        assert codec in possible_codecs, f"Codec {codec} needs to be one of these: {possible_codecs}"
 
-        assert text.size > 0, self.items[idx][1]
-        assert wav.size > 0, self.items[idx][1]
+        with tempfile.TemporaryDirectory() as dirpath:
+            intermediate_1 = Path(dirpath) / f"{codec}.{codec}"
+            intermediate_2 = Path(dirpath) / f"{Path(filename_to_load).stem}_{codec}.wav"
+            frame_rate = {"opus":16000, "gsm":8000, "g722":16000, "wav":16000, "ulaw":8000, "alaw":8000}
+            
+            if codec in ["opus", "gsm", "g722", "wav"]:
+                sound = AudioSegment.from_file(filename_to_load)
+                sound = sound.set_frame_rate(frame_rate[codec])
+                sound.export(intermediate_1, format=codec)
+                sound = AudioSegment.from_file(intermediate_1, codec=codec)
+                sound = sound.set_frame_rate(frame_rate[codec])
+                sound.export(intermediate_2, format="wav")
 
-        sample = {
-            "mel": mel,
-            "item_idx": self.items[idx][1],
-            "speaker_name": speaker_name,
-        }
-        return sample
+            elif codec == "ulaw": 
+                wav = self.ap.load_wav(filename_to_load, sr=self.ap.sample_rate)
+                ulaw = g711.encode_ulaw(wav)
+                decoded = g711.decode_ulaw(ulaw)
+                sf.write(intermediate_2, decoded, frame_rate[codec])
+
+            elif codec == "alaw":
+                params = ["-acodec", "pcm_alaw"]
+                sound = AudioSegment.from_file(filename_to_load)
+                sound = sound.set_frame_rate(frame_rate[codec])
+                sound.export(intermediate_2, format="wav", parameters=params)
+            
+            assert intermediate_2.exists(), f"Something went wrong while applying the codecs, file {intermediate_2} should exist"
+            audio = self.ap.load_wav(intermediate_2, sr=frame_rate[codec])
+            
+        return audio
+
+    def _select_codec(self, codecs, prob):
+        # select codec
+        if codecs != []:
+            if isinstance(codecs, list):
+                codec = random.sample(codecs, 1)[0]
+            else:
+                codec = codecs
+
+            # if to apply codec or just use normal wav
+            if random.choices([0,1], [1.0-prob, prob], k=1)[0]:
+                return codec
+            else:
+                return None
+        else:
+            return None
 
     def __parse_items(self):
         """
@@ -111,18 +159,9 @@ class MyDataset(Dataset):
         returns a random speaker (with some of their utterances)
         """
         speaker = random.sample(self.speakers, 1)[0]
+        return speaker
 
-        # not used
-        # if self.num_utter_per_speaker > len(self.speaker_to_utters[speaker]):
-        #     utters = random.choices(
-        #         self.speaker_to_utters[speaker], k=self.num_utter_per_speaker
-        #     )
-        # else:
-        #     utters = random.sample(
-        #         self.speaker_to_utters[speaker], self.num_utter_per_speaker
-        #     )
-        return speaker #, utters
-
+    # used for non-caching
     def __sample_wavs(self, speaker):
         """
         returns list of wavs of length 'num_utter_per_speaker', labels = speaker
@@ -148,32 +187,6 @@ class MyDataset(Dataset):
             labels.append(speaker)
         return wavs, labels
             
-
-    # def __sample_speaker_utterances(self, speaker):
-    #     """
-    #     Sample all M utterances for the given speaker.
-    #     """
-    #     wavs = []
-    #     labels = []
-    #     for _ in range(self.num_utter_per_speaker):
-    #         # TODO:dummy but works
-    #         while True:
-    #             if len(self.speaker_to_utters[speaker]) > 0:
-    #                 utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
-    #             else:
-    #                 self.speakers.remove(speaker)
-    #                 speaker = self.__sample_speaker()
-    #                 continue
-    #             wav = self.load_wav(utter)
-    #             if wav.shape[0] - self.seq_len > 0:
-    #                 break
-    #             else: # remove too short utterances
-    #                 self.speaker_to_utters[speaker].remove(utter)
-
-    #         wavs.append(wav)
-    #         labels.append(speaker)
-    #     return wavs, labels
-
     # returns the next speaker
     def __getitem__(self, idx):
         speaker = self.__sample_speaker()
@@ -200,18 +213,19 @@ class MyDataset(Dataset):
         feats = torch.stack(feats) # [250,40,138] for no caching, 
         return feats.transpose(1, 2), labels
 
-    # TODO: what to do with subsetting?
     def collate_with_caching(self, speaker):
         count = 0
         labels_ = []
         feats_ = []
         while count < self.num_utter_per_speaker:
             utter = random.sample(self.speaker_to_utters[speaker], 1)[0]
-            save_path = self.get_save_path(utter)
+            codec = self._select_codec(self.codecs, self.prob)
+            save_path = self.get_save_path(utter, codec)
             if save_path.exists():
                 feat = self.load_np(save_path)  # 40, 138
             else:
-                wav = self.load_wav(utter) # [23915,]
+                wav = self.load_wav(utter, codec) # [23915,]
+                wav = self.apply_trim_silence(wav)
                 if wav.shape[0] < self.seq_len: # remove too short utterances, if no utterances left draw another speaker
                     self.speaker_to_utters[speaker].remove(utter)
                     if len(self.speaker_to_utters[speaker]) == 0:
@@ -222,14 +236,9 @@ class MyDataset(Dataset):
                 feat = self._add_gaussian_noise(wav)  # [23915,]
 
                 if self.feature_type == 'mfcc':
-                    # offset = random.randint(0, wav.shape[0] - self.seq_len) # TODO: delete after fixing _select_subset()
-                    # y=wav[offset: offset + self.seq_len] # 22050
-                    # feat = self.ap.melspectrogram(wav[offset: offset + self.seq_len]) # [40,138]
                     feat = self.ap.melspectrogram(wav) # [40, 202]
                 
-                x=feat.shape
-                np.save(file=save_path, arr=feat)  
-
+                np.save(file=save_path, arr=feat)
             feat = self._select_subset(feat)
             feat = torch.FloatTensor(feat) 
 
@@ -239,12 +248,10 @@ class MyDataset(Dataset):
             
         return feats_, labels_
 
-    # TODO one folder for each dataset
-    def get_save_path(self, wav_path):
-        if self.feature_type == 'mfcc': feature_type = 'mel'
-        else: feature_type = self.feature_type
-
-        filename = f"{Path(wav_path).stem}_{feature_type}_{self.seq_len}.npy"
+    def get_save_path(self, wav_path, codec):
+        if self.trim_silence:
+            add_on = "_trim-sil"
+        filename = f"{Path(wav_path).stem}_{self.feature_type}_{codec}{add_on}.npy"
 
         parent_folder = Path(wav_path).parents[0]
         parent_folder = parent_folder.relative_to(self.dataset_folder)
@@ -254,6 +261,14 @@ class MyDataset(Dataset):
         save_path = parent_folder / Path(filename)
         return save_path
 
+    def apply_trim_silence(self, wav, threshold=30):
+        if self.trim_silence:
+            trimmed, _ = librosa.effects.trim(wav, top_db=threshold)
+            return trimmed
+        else:
+            return wav
+
+    # Not tested
     def collate_without_caching(self, speaker):
         if random.random() < self.sample_from_storage_p and self.storage.full():
             # sample from storage (if full), ignoring the speaker
@@ -287,7 +302,7 @@ class MyDataset(Dataset):
         add random gaussian noise
         """
         if self.additive_noise > 0:
-            noise_ = numpy.random.normal(0, self.additive_noise, size=len(wav))
+            noise_ = np.random.normal(0, self.additive_noise, size=len(wav))
             wav_ = wav + noise_
         return wav_
 
@@ -301,6 +316,7 @@ class MyDataset(Dataset):
             return feat[:,offset: offset + seq_len]
         else:
             offset = random.randint(0, feat.shape[0] - self.seq_len)
+            print(offset)
             return feat[offset: offset + self.seq_len]
 
     @staticmethod

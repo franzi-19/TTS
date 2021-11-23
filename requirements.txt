@@ -23,3 +23,5 @@ pylint==2.5.3
 gdown
 umap
 cython
+pydub
+g711

@@ -29,7 +29,7 @@ colormap = (
 )
 
 # assumption for embeddings: points for each speaker of length num_utter_per_speaker lined up, one speaker after another
-def plot_embeddings(embeddings, num_utter_per_speaker, labels, max_speaker=10, max_utter=10): 
+def plot_embeddings(embeddings, num_utter_per_speaker, labels, max_speaker=10, max_utter=20): 
     embeddings = embeddings.reshape(embeddings.shape[0] // num_utter_per_speaker, num_utter_per_speaker, -1)
     num_utter_per_speaker = min(num_utter_per_speaker, max_utter)
     embeddings = embeddings[: max_speaker, : max_utter].reshape(-1, embeddings.shape[-1])
