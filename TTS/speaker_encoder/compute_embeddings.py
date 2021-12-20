@@ -6,80 +6,16 @@ import random
 import numpy as np
 import torch
 from tqdm import tqdm
-from TTS.bin.train_encoder import main
 from TTS.speaker_encoder.model import SpeakerEncoder
 from TTS.utils.audio import AudioProcessor
 from TTS.utils.io import load_config
 
+import TTS.speaker_encoder.create_plots as create_plots
+import TTS.speaker_encoder.attack_signatures as attack_signatures
 
-def plot(embeds, locations, plot_path, labels=None, title=None):
-    import umap
-    from bokeh.io import save, show
-    from bokeh.models import (BoxZoomTool, ColumnDataSource, HoverTool,
-                              OpenURL, ResetTool, TapTool)
-    from bokeh.palettes import Category10
-    from bokeh.plotting import figure
-    from bokeh.transform import factor_cmap
-
-    model = umap.UMAP()
-    projection = model.fit_transform(embeds)
-    if labels != None and labels != []:
-        source_wav_stems = ColumnDataSource(
-                data=dict(
-                    x = projection.T[0].tolist(),
-                    y = projection.T[1].tolist(),
-                    desc=locations,
-                    label=labels
-                )
-            )
-    else:
-        source_wav_stems = ColumnDataSource(
-                data=dict(
-                    x = projection.T[0].tolist(),
-                    y = projection.T[1].tolist(),
-                    desc=locations
-                )
-            )
-
-    hover = HoverTool(
-            tooltips=[
-                ("file", "@desc"),
-                ("speaker", "@label"),
-            ]
-        )
-
-    # optionally consider adding these to the tooltips if you want additional detail
-    # for the coordinates: ("(x,y)", "($x, $y)"),
-    # for the index of the embedding / wav file: ("index", "$index"),
-
-    if labels != None and labels != []:
-        factors = list(set(labels))
-        pal_size = max(len(factors), 3)
-        pal = Category10[pal_size]
-
-    p = figure(plot_width=600, plot_height=400, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
-
-    if labels != None and labels != []:
-        p.circle('x', 'y',  source=source_wav_stems, color=factor_cmap('label', palette=pal, factors=factors),)
-    else:
-        p.circle('x', 'y',  source=source_wav_stems)
-
-    # url = "http://localhost:8000/@desc"
-    # taptool = p.select(type=TapTool)
-    # taptool.callback = OpenURL(url=url)
-
-    # show(p)
-    
-    if title: filename = f"plot_{title}.html"
-    else: filename = "plot.html"
-
-    file_path = plot_path + filename
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    save(p, file_path, title=title)
-    print(f'saved plot at {file_path}')
 
 # if number == None: use all files
-def compute(number=1000):
+def compute_embeddings(number=1000):
 
     parser = argparse.ArgumentParser(
         description='Compute embedding vectors for each wav file in a dataset. ')
@@ -176,7 +112,7 @@ def compute(number=1000):
         model.cuda()
 
     if number != None:
-        idx = random.sample(range(len(labels)), number)
+        idx = random.sample(range(len(wav_files)), number)
         wav_files = list(np.array(wav_files)[idx])
         if labels != []: 
             labels = list(np.array(labels)[idx])
@@ -207,7 +143,7 @@ def compute(number=1000):
 
     if args.plot_path != None:
         sample_ids = random.sample(range(len(all_embedds)), len(all_embedds))
-        plot([all_embedds[s_id][0] for s_id in sample_ids], [output_files[s_id] for s_id in sample_ids], args.plot_path, labels=labels, title=args.title)
+        create_plots.plot_embeddings([all_embedds[s_id][0] for s_id in sample_ids], [output_files[s_id] for s_id in sample_ids], args.plot_path, labels=labels, title=args.title)
 
 def _get_silence_label(wav):
     import librosa
@@ -255,6 +191,7 @@ def youtube_dataset(root_path, meta_file):
                 labels.append("Youtube_" + attack_id)
     return wav_files, labels
 
+#-----------------------
 
 def start_assigning_labels():
     parser = argparse.ArgumentParser(
@@ -287,14 +224,14 @@ def assign_labels_via_cosine_similarity(train_path, test_path, train_output_path
     model, ap = _load_model(config_path, model_path, use_cuda)
 
     train_wav_files, train_output_files, train_labels = _get_files(train_path, train_output_path, size)
-    test_wav_files, test_output_files, _ = _get_files(test_path, test_output_path, size)
+    test_wav_files, test_output_files, _ = _get_files(test_path, test_output_path, int(size*0.5))
 
     train_embedd = _create_embeddings(train_wav_files, train_output_files, ap, model, use_cuda)
     test_embedd = _create_embeddings(test_wav_files, test_output_files, ap, model, use_cuda)
 
     test_labels = _get_labels(train_embedd, train_labels, test_embedd)
 
-    plot_two_sets(train_embedd, train_labels, test_embedd, test_labels, train_wav_files, test_wav_files, plot_path, title)
+    create_plots.plot_two_sets(train_embedd, train_labels, test_embedd, test_labels, train_wav_files, test_wav_files, plot_path, title)
 
 def _load_model(config_path, model_path, use_cuda=True):
     c = load_config(config_path)
@@ -307,32 +244,46 @@ def _load_model(config_path, model_path, use_cuda=True):
 
     return model, ap
 
+# TODO use trim_silence model
 def _get_files(folder_path, output_path, size):
-    labels = None
+    all_wav_files = []
+    all_labels = []
     if "ASVspoof2019_LA_cm_protocols" in folder_path:
-            label_files = glob.glob(folder_path + '/**/*.txt', recursive=True)
-            print(f'Label file: {label_files[0]}')
-            wav_paths = ["/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_train/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_dev/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_eval/"]
-            wav_files, labels = asvspoof_19(wav_paths[0], label_files[1]) # TODO: do it for all 3
-    else:
-        wav_files = glob.glob(folder_path + '/**/*.wav', recursive=True)
-        if len(wav_files) == 0:
-            wav_files = glob.glob(folder_path + '/**/*.flac', recursive=True)
+        label_files = glob.glob(folder_path + '/**/*.txt', recursive=True)
+        wav_paths = ["/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_train/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_dev/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_eval/"]
+        for label_file in label_files:
+            print(f'Label file: {label_file}')
+            if 'train' in label_file:
+                wav_path = wav_paths[0]
+            elif 'dev' in label_file:
+                wav_path = wav_paths[1]
+            elif 'eval' in label_file:
+                wav_path = wav_paths[2]
 
-    assert len(wav_files) != 0, "No audio files found"
+            wav_files, labels = asvspoof_19(wav_path, label_file) 
+            all_wav_files = all_wav_files + wav_files
+            all_labels = all_labels + labels
+            
+            assert len(all_wav_files) == len(all_labels), "found different number of wav files and labels"
+    else:
+        all_wav_files = glob.glob(folder_path + '/**/*.wav', recursive=True)
+        if len(all_wav_files) == 0:
+            all_wav_files = glob.glob(folder_path + '/**/*.flac', recursive=True)
+
+    assert len(all_wav_files) != 0, "No audio files found"
 
     output_files = [wav_file.replace(folder_path, output_path).replace(
-        '.wav', '.npy').replace('.flac', '.npy') for wav_file in wav_files]
+        '.wav', '.npy').replace('.flac', '.npy') for wav_file in all_wav_files]
 
     for output_file in output_files:
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    idx = random.sample(range(len(wav_files)), size)
-    wav_files = list(np.array(wav_files)[idx])
+    idx = random.sample(range(len(all_wav_files)), size)
+    all_wav_files = list(np.array(all_wav_files)[idx])
     output_files = list(np.array(output_files)[idx])
-    if labels != None: labels = list(np.array(labels)[idx])
+    if all_labels != []: all_labels = list(np.array(all_labels)[idx])
 
-    return wav_files, output_files, labels
+    return all_wav_files, output_files, all_labels
 
 def _create_embeddings(wav_files, output_files, ap, model, use_cuda):
     all_embedds = []
@@ -365,7 +316,7 @@ def _get_label_with_knn_for_one_sample(train_, train_labels, test_):
     cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
     dist = cos(train, test)
 
-    knn = dist.topk(20)
+    knn = dist.topk(3)
 
     # print('kNN dist: {}, index: {}'.format(knn.values, knn.indices))
     poss_label = [train_labels[num] for num in knn.indices.numpy()]
@@ -395,43 +346,75 @@ def asvspoof_19(wav_folder, meta_file):
             assert os.path.exists(wav_file), f'Failure: File {wav_file} is missing'
 
             wav_files.append(wav_file)
-            labels.append("Youtube_" + attack_id)
+            labels.append("asvspoof_19_" + attack_id)
     return wav_files, labels
 
-def plot_two_sets(embeds_1, labels_1, embeds_2, labels_2, locations_1, locations_2, plot_path, title):
-    import umap
-    from bokeh.io import save, show
-    from bokeh.models import (BoxZoomTool, ColumnDataSource, HoverTool,
-                              OpenURL, ResetTool, TapTool)
-    from bokeh.palettes import Category20
-    from bokeh.plotting import figure
-    from bokeh.transform import factor_cmap
 
-    model = umap.UMAP()
-    len_1 = len(embeds_1)
-    projection = model.fit_transform(embeds_1 + embeds_2)
+# ---------------------
+# TODO prevent AudioProcessor from removing silence
+def label_based_on_signatures(train_path, train_output_path, config_path, model_path, use_cuda, plot_path, title, size=1000):
+    model, ap = _load_model(config_path, model_path, use_cuda)
+    train_wav_files, train_output_files, train_labels = _get_files(train_path, train_output_path, size)
+    train_embedd = _create_embeddings(train_wav_files, train_output_files, ap, model, use_cuda)
+
+    signatures, names = _get_signatures(train_wav_files)
+    for sig, name in (zip(signatures, names)):
+        create_plots.plot_embeddings_continuous(train_embedd, plot_path, sig, f"{title}_{name}")
+
+def _get_signatures(wav_files):
+    all_sig = []
+    for wav in tqdm(wav_files):
+        all_sig.append(attack_signatures.apply_all_signature_one_result(wav))
+    result_lists = list(map(list, zip(*all_sig)))
+    # result_lists = list(map(list, zip(*[attack_signatures.apply_all_signature_one_result(wav) for wav in wav_files])))
+
+    return result_lists, attack_signatures.get_all_names()
+
+# ---------
+def plot_based_on_signatures(train_path, train_output_path, plot_path, title, size=1000):
+    all_signature_names = attack_signatures.get_all_names_one_result()
+    train_wav_files, _, train_labels = _get_files(train_path, train_output_path, size)
+    
+    for name in tqdm(all_signature_names):
+        sig_function_1 = attack_signatures.get_signature_by_name(name)
+        for other_name in all_signature_names:
+            sig_function_2 = attack_signatures.get_signature_by_name(other_name)
+            _plot_based_on_two_signatures(train_wav_files, train_labels, plot_path, title, sig_function_1, name, sig_function_2, other_name)
+
+def _plot_based_on_two_signatures(train_wav_files, train_labels, plot_path, title, signature_1, signature_1_name, signature_2, signature_2_name):    
+    train_embedd_x = []
+    train_embedd_y = []
+    for wav in train_wav_files:
+        train_embedd_x.append(signature_1(wav))
+        train_embedd_y.append(signature_2(wav))
+
+    create_plots.just_plot(train_embedd_x, train_embedd_y, plot_path, train_labels, f"{title}_{signature_1_name}_{signature_2_name}")
 
 
-    data_1 = ColumnDataSource(data=dict(x = projection.T[0].tolist()[:len_1], y = projection.T[1].tolist()[:len_1], desc=locations_1, label=labels_1))
-    data_2 = ColumnDataSource(data=dict(x = projection.T[0].tolist()[len_1:], y = projection.T[1].tolist()[len_1:], desc=locations_2, label=labels_2))
-
-    hover = HoverTool(tooltips=[("file", "@desc"), ("speaker", "@label"),])
-
-    p = figure(plot_width=1000, plot_height=600, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
-
-    factors_1 = list(set(labels_1))
-    pal_size_1 = max(len(factors_1), 3)
-    pal_1 = Category20[pal_size_1]
-
-    p.circle('x', 'y',  source=data_1, color=factor_cmap('label', palette=pal_1, factors=factors_1),)
-    p.cross('x', 'y',  source=data_2, color=factor_cmap('label', palette=pal_1, factors=factors_1), size=10)
-
-    filename = f"plot_{title}.html"
-    file_path = plot_path + filename
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    save(p, file_path, title=title)
-    print(f'saved plot at {file_path}')
 
 if __name__ == '__main__':
-    # compute()                 # just for plotting embeddings
-    start_assigning_labels()    # for knn
+    # compute_embeddings()                  # just for plotting embeddings
+    # start_assigning_labels()              # for knn
+
+    # label_based_on_signatures(  '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
+    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
+    #                             True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
+    #                             'signture_label')
+    # label_based_on_signatures(  '/opt/franzi/datasets/ASVspoof2021_LA_eval',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/',
+    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
+    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
+    #                             True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/plot/',
+    #                             'signture_label')
+
+    plot_based_on_signatures(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
+                                'signture_embedd')
+    # plot_based_on_signatures(   '/opt/franzi/datasets/ASVspoof2021_LA_eval/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/plot/',
+    #                             'signture_embedd')
+
