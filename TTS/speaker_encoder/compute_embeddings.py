@@ -2,16 +2,17 @@ import argparse
 import glob
 import os
 import random
+import statistics
+import csv
 
 import numpy as np
 import torch
+import TTS.speaker_encoder.attack_signatures as attack_signatures
+import TTS.speaker_encoder.create_plots as create_plots
 from tqdm import tqdm
 from TTS.speaker_encoder.model import SpeakerEncoder
 from TTS.utils.audio import AudioProcessor
 from TTS.utils.io import load_config
-
-import TTS.speaker_encoder.create_plots as create_plots
-import TTS.speaker_encoder.attack_signatures as attack_signatures
 
 
 # if number == None: use all files
@@ -223,8 +224,8 @@ def start_assigning_labels():
 def assign_labels_via_cosine_similarity(train_path, test_path, train_output_path, test_output_path, config_path, model_path, use_cuda, plot_path, title, size=1000):
     model, ap = _load_model(config_path, model_path, use_cuda)
 
-    train_wav_files, train_output_files, train_labels = _get_files(train_path, train_output_path, size)
-    test_wav_files, test_output_files, _ = _get_files(test_path, test_output_path, int(size*0.5))
+    train_wav_files, train_output_files, train_labels, gender = _get_files(train_path, train_output_path, size)
+    test_wav_files, test_output_files, _, gender = _get_files(test_path, test_output_path, int(size*0.5))
 
     train_embedd = _create_embeddings(train_wav_files, train_output_files, ap, model, use_cuda)
     test_embedd = _create_embeddings(test_wav_files, test_output_files, ap, model, use_cuda)
@@ -244,10 +245,10 @@ def _load_model(config_path, model_path, use_cuda=True):
 
     return model, ap
 
-# TODO use trim_silence model
 def _get_files(folder_path, output_path, size):
     all_wav_files = []
     all_labels = []
+    all_gender = []
     if "ASVspoof2019_LA_cm_protocols" in folder_path:
         label_files = glob.glob(folder_path + '/**/*.txt', recursive=True)
         wav_paths = ["/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_train/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_dev/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_eval/"]
@@ -260,9 +261,10 @@ def _get_files(folder_path, output_path, size):
             elif 'eval' in label_file:
                 wav_path = wav_paths[2]
 
-            wav_files, labels = asvspoof_19(wav_path, label_file) 
+            wav_files, labels, gender = asvspoof_19(wav_path, label_file) 
             all_wav_files = all_wav_files + wav_files
             all_labels = all_labels + labels
+            all_gender = all_gender + gender
             
             assert len(all_wav_files) == len(all_labels), "found different number of wav files and labels"
     else:
@@ -278,12 +280,14 @@ def _get_files(folder_path, output_path, size):
     for output_file in output_files:
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    idx = random.sample(range(len(all_wav_files)), size)
-    all_wav_files = list(np.array(all_wav_files)[idx])
-    output_files = list(np.array(output_files)[idx])
-    if all_labels != []: all_labels = list(np.array(all_labels)[idx])
+    if size != None:
+        idx = random.sample(range(len(all_wav_files)), size)
+        all_wav_files = list(np.array(all_wav_files)[idx])
+        output_files = list(np.array(output_files)[idx])
+        all_gender = list(np.array(all_gender)[idx])
+        if all_labels != []: all_labels = list(np.array(all_labels)[idx])
 
-    return all_wav_files, output_files, all_labels
+    return all_wav_files, output_files, all_labels, all_gender
 
 def _create_embeddings(wav_files, output_files, ap, model, use_cuda):
     all_embedds = []
@@ -310,9 +314,6 @@ def _get_label_with_knn_for_one_sample(train_, train_labels, test_):
     train = torch.from_numpy(np.array(train_))
     test = torch.from_numpy(np.array(test_))
 
-    x = torch.randn(100, 10) 
-    y = torch.randn(1, 10)
-
     cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
     dist = cos(train, test)
 
@@ -330,6 +331,7 @@ def asvspoof_19(wav_folder, meta_file):
     """
     wav_files = []
     labels = []
+    speaker = []
     with open(meta_file, 'r') as file:
         for line in file.readlines():
             line = line.strip()
@@ -338,7 +340,7 @@ def asvspoof_19(wav_folder, meta_file):
             if len(infos) != 5:
                 raise AssertionError('ASVspoof information file is malformed. Each line should have 5 columns.')
 
-            _, file_name, _, attack_id, _ = infos
+            speaker_id, file_name, _, attack_id, _ = infos
 
             wav_file = os.path.join(wav_folder, 'flac' , file_name + '.wav')
             if not os.path.exists(wav_file):
@@ -347,33 +349,63 @@ def asvspoof_19(wav_folder, meta_file):
 
             wav_files.append(wav_file)
             labels.append("asvspoof_19_" + attack_id)
-    return wav_files, labels
+            speaker.append(speaker_id)
+
+    gender = get_gender_from_id(speaker)
+    return wav_files, labels, gender
+
+def get_gender_from_id(speaker_ids):
+    folder = "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_asv_protocols/"
+    gender_csv = folder + 'ASVspoof2019.LA.gender.txt'
+    if os.path.exists(gender_csv):
+        with open(gender_csv, mode='r') as infile:
+            reader = csv.reader(infile)
+            dict = {rows[0]:rows[1] for rows in reader}
+            return [dict.get(speaker_id, "unknown") for speaker_id in speaker_ids]
+    else:# eval/dev.male/female.trn.txt
+        gender_files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and 'trn.txt' in f and ('male' in f or 'female' in f)]
+        found_gender = []
+        for g_file in gender_files:
+            gender = 'female' if 'female' in g_file else 'male'
+            with open(g_file, mode='r') as f:
+                reader = csv.reader(f, delimiter="\t")
+                for line in reader:
+                    speaker_id = line[0].split(' ')[0]
+                    found_gender.append([speaker_id, gender]) 
+
+        with open(gender_csv, mode='w') as gender_file:
+            wr = csv.writer(gender_file)
+            wr.writerows(found_gender)
+        
+        return get_gender_from_id(speaker_ids)
 
 
 # ---------------------
-# TODO prevent AudioProcessor from removing silence
+# sig = metric
 def label_based_on_signatures(train_path, train_output_path, config_path, model_path, use_cuda, plot_path, title, size=1000):
     model, ap = _load_model(config_path, model_path, use_cuda)
-    train_wav_files, train_output_files, train_labels = _get_files(train_path, train_output_path, size)
+    train_wav_files, train_output_files, train_labels, gender = _get_files(train_path, train_output_path, size)
     train_embedd = _create_embeddings(train_wav_files, train_output_files, ap, model, use_cuda)
 
-    signatures, names = _get_signatures(train_wav_files)
+    signatures, names = _get_signature_labels(train_wav_files, gender)
     for sig, name in (zip(signatures, names)):
         create_plots.plot_embeddings_continuous(train_embedd, plot_path, sig, f"{title}_{name}")
 
-def _get_signatures(wav_files):
+def _get_signature_labels(wav_files, gender): 
     all_sig = []
     for wav in tqdm(wav_files):
         all_sig.append(attack_signatures.apply_all_signature_one_result(wav))
     result_lists = list(map(list, zip(*all_sig)))
-    # result_lists = list(map(list, zip(*[attack_signatures.apply_all_signature_one_result(wav) for wav in wav_files])))
 
-    return result_lists, attack_signatures.get_all_names()
+    result_lists.append(gender) 
+    return result_lists, attack_signatures.get_all_names_one_result() + ['gender']
 
 # ---------
+# sig = feature
 def plot_based_on_signatures(train_path, train_output_path, plot_path, title, size=1000):
     all_signature_names = attack_signatures.get_all_names_one_result()
-    train_wav_files, _, train_labels = _get_files(train_path, train_output_path, size)
+    
+    train_wav_files, _, train_labels, gender = _get_files(train_path, train_output_path, size)
     
     for name in tqdm(all_signature_names):
         sig_function_1 = attack_signatures.get_signature_by_name(name)
@@ -385,11 +417,120 @@ def _plot_based_on_two_signatures(train_wav_files, train_labels, plot_path, titl
     train_embedd_x = []
     train_embedd_y = []
     for wav in train_wav_files:
+        # TODO for gender
         train_embedd_x.append(signature_1(wav))
         train_embedd_y.append(signature_2(wav))
 
     create_plots.just_plot(train_embedd_x, train_embedd_y, plot_path, train_labels, f"{title}_{signature_1_name}_{signature_2_name}")
 
+# ------
+def quantify_feature_clusters(train_path, train_output_path, plot_path, title, size=1000):
+    all_signature_names = attack_signatures.get_all_names_one_result()
+    all_signature_names.append('gender')
+    train_wav_files, _, train_labels, gender = _get_files(train_path, train_output_path, size)
+    result = {key: [] for key in all_signature_names}
+
+    for name in tqdm(all_signature_names):
+        sig_function_1 = attack_signatures.get_signature_by_name(name)
+        for other_name in all_signature_names:
+            sig_function_2 = attack_signatures.get_signature_by_name(other_name)
+            print(name, other_name)
+
+            points_x = []
+            points_y = []
+            for idx, wav in enumerate(train_wav_files):
+                if name == 'gender': x = gender[idx]
+                else: x = sig_function_1(wav)
+
+                if other_name == 'gender': y = gender[idx]
+                else: y = sig_function_2(wav)
+
+                points_x.append(x)
+                points_y.append(y)
+
+            points_x = normalize_points(points_x)
+            points_y = normalize_points(points_y)
+            points = [[points_x[idx], points_y[idx]] for idx in range(len(points_x))]
+
+            cluster = {key: [] for key in train_labels}
+            for idx, point in enumerate(points):
+                cluster[train_labels[idx]].append(point)
+
+            centroids, mean_distances, centroid_labels = [], [], []  
+            for cl in cluster:
+                centroid, mean_distance = calculate_mean_distance(cluster[cl])
+                centroids.append(centroid)
+                mean_distances.append(mean_distance)
+                centroid_labels.append(cl)
+
+            create_plots.plot_centroids(points, train_labels, centroids, mean_distances, centroid_labels, plot_path, f"{title}_{name}_{other_name}")
+            
+            result[name].append((statistics.mean([cen[0] for cen in centroids]), statistics.mean([dist[0] for dist in mean_distances])))
+            result[other_name].append((statistics.mean([cen[1] for cen in centroids]), statistics.mean([dist[1] for dist in mean_distances])))
+    _write_infos(result, f"{plot_path}/result_feature_clusters.csv")
+
+def quantify_metric_cluster(train_path, train_output_path, config_path, model_path, use_cuda, plot_path, k=5, size=1000):
+    model, ap = _load_model(config_path, model_path, use_cuda)
+    train_wav_files, train_output_files, train_labels, gender = _get_files(train_path, train_output_path, size)
+    train_embedd = _create_embeddings(train_wav_files, train_output_files, ap, model, use_cuda)
+
+    signature_labels, names = _get_signature_labels(train_wav_files, gender)
+    result_dict = {}
+    for sig_labels, name in tqdm(zip(signature_labels, names)):
+        labels = normalize_points(sig_labels)
+        coll_min, coll_max = [], []
+        for idx, current in enumerate(train_embedd):
+            found_min, found_max = calculate_range(current, labels[idx], train_embedd, labels, k)
+            coll_min.append(found_min)
+            coll_max.append(found_max)
+        result_dict[name] = (sum(coll_min)/len(coll_min), sum(coll_max)/len(coll_max))
+
+    _write_infos(result_dict, f"{plot_path}/result_metric_clusters.csv", ['signature', f'min and max label for k={k}'])
+
+def _write_infos(dict, path, header=['signature', '(centroid, mean_distance)']):
+    import csv
+    with open(path, 'w') as f:  
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for k, v in dict.items():
+            writer.writerow([k, v])
+    print(f'Infos saved at {path}')
+
+# for siganture = feature
+def calculate_mean_distance(cluster): # [[x1,y1], [x2,y2], ...]
+    centroid = np.mean(cluster, axis=0)
+    mean_distance = sum([point - centroid for point in np.abs(cluster)]) / len(cluster)
+    return centroid, mean_distance
+
+# centered around 0
+def normalize_points(point_list): 
+    # assign strings an int value
+    if isinstance(point_list[0], str):
+        assign_id = {}
+        for idx, point in enumerate(point_list):
+            if point in assign_id: point_list[idx] = assign_id[point]
+            else: 
+                assign_id.update({point: len(assign_id.keys())})
+                point_list[idx] = assign_id[point]
+
+    mean = np.mean(point_list, axis=0)
+    std = np.std(point_list, axis=0)
+    return (point_list - mean)/std
+    # return [(point-mean)/std for point in point_list]
+
+# for signature = metric
+def calculate_range(point, point_label,  all_points, all_labels, k=5):
+    point = torch.from_numpy(np.array([point]))
+    all_points = torch.from_numpy(np.array(all_points))
+
+    cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+    dist = cos(point, all_points)
+    knn = dist.topk(k)
+
+    knn_labels = [all_labels[num] for num in knn.indices.numpy()]
+    knn_labels.append(point_label)
+
+    return min(knn_labels), max(knn_labels)
 
 
 if __name__ == '__main__':
@@ -409,12 +550,25 @@ if __name__ == '__main__':
     #                             True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/plot/',
     #                             'signture_label')
 
-    plot_based_on_signatures(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
-                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
-                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
-                                'signture_embedd')
+
+    # plot_based_on_signatures(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
+    #                             'signture_embedd')
     # plot_based_on_signatures(   '/opt/franzi/datasets/ASVspoof2021_LA_eval/',
     #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/',
     #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/plot/',
     #                             'signture_embedd')
+
+
+    quantify_feature_clusters(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
+                                'signature_feature_centroid')
+    quantify_metric_cluster(  '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+                                '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
+                                '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
+                                True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/')
+    
 
