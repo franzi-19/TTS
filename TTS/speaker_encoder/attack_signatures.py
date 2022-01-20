@@ -16,22 +16,22 @@ def measure_noise_likeness_librosa(wav_path): # [[3.7553793e-04 3.0664928e-04 8.
     wav, _ = librosa.load(wav_path)
     return librosa.feature.spectral_flatness(wav)
 
-# TODO find threshold
-def get_all_silence_length_rate(sound):
-    from pydub import AudioSegment
-    from pydub.silence import detect_silence
+# same as voiced unvoiced rate
+# def get_all_silence_length_rate(sound):
+#     from pydub import AudioSegment
+#     from pydub.silence import detect_silence
 
-    ranges = detect_silence(sound, min_silence_len = 20, silence_thresh = -30) 
+#     ranges = detect_silence(sound, min_silence_len = 20, silence_thresh = -30) 
 
-    print("total: ", sound.duration_seconds)
-    print('ranges:', ranges)
+#     print("total: ", sound.duration_seconds)
+#     print('ranges:', ranges)
 
-    silence = sum([range[1] - range[0] for range in ranges])
+#     silence = sum([range[1] - range[0] for range in ranges])
 
-    print("silence:", silence)
-    print("len audio", len(sound))
+#     print("silence:", silence)
+#     print("len audio", len(sound))
     
-    return silence / len(sound)
+#     return silence / len(sound)
 
 # https://github.com/mueller91/crawler_tts/blob/master/audio_selection/features_from_audio.py#L224
 def get_voiced_unvoiced_rate(wav_path):   # 0.5286343612334802
@@ -162,10 +162,12 @@ def get_lead_trail_silence_rate(wav_path): # 0.040914916691314175
     silence = librosa.get_duration(wav) - librosa.get_duration(trimmed)
     return silence / librosa.get_duration(wav)
 
+def get_gender(wav_path): # dummy method
+    return 0
 
 
 def apply_all_signature_one_result(wav_path):
-    lead_trail_silence = get_lead_trail_silence_rate(wav_path)
+    # lead_trail_silence = get_lead_trail_silence_rate(wav_path)
     peak_amplitude = get_peak_amplitude(wav_path)
     loudness = get_loudness(wav_path)
     max_loudness = get_max_loudness(wav_path)
@@ -173,6 +175,7 @@ def apply_all_signature_one_result(wav_path):
 
     hnr_mean = get_hnr_mean(wav_path)
     hnr_std = get_hnr_std(wav_path)
+    shim = get_shimmer(wav_path)
     jit = get_jitter(wav_path)
     en = get_energy(wav_path)
     pow = get_power(wav_path)
@@ -183,10 +186,14 @@ def apply_all_signature_one_result(wav_path):
     pitch_mas = get_pitch_mas(wav_path)
     vuv_r = get_voiced_unvoiced_rate(wav_path)
 
-    return lead_trail_silence, peak_amplitude, loudness, max_loudness, duration, hnr_mean, hnr_std, shim, jit, en, pow, pitch_mean, pitch_std, pitch_min, pitch_max, pitch_mas, vuv_r
+    import math
+    if math.isnan(peak_amplitude) or math.isnan(loudness) or math.isnan(max_loudness) or math.isnan(duration) or math.isnan(hnr_mean) or math.isnan(hnr_std) or math.isnan(shim) or math.isnan(jit) or math.isnan(en) or math.isnan(pow) or math.isnan(pitch_mean) or math.isnan(pitch_std) or math.isnan(pitch_min) or math.isnan(pitch_max) or math.isnan(pitch_mas) or math.isnan(vuv_r):
+        print(wav_path) # /opt/franzi/datasets/ASVspoof2021_LA_eval/flac/LA_E_8762729.flac
+
+    return peak_amplitude, loudness, max_loudness, duration, hnr_mean, hnr_std, shim, jit, en, pow, pitch_mean, pitch_std, pitch_min, pitch_max, pitch_mas, vuv_r
 
 def get_all_names_one_result():
-    return ['lead_trail_silence_rate', 'peak_amplitude', 'loudness', 'max_loudness', 'duration', 'hnr_mean', 'hnr_std', 'shimmer', 'jitter', 'energy', 'power', 'pitch_mean', 'pitch_std', 'pitch_min', 'pitch_max', 'pitch_mas', 'voiced_unvoiced_rate']
+    return ['peak_amplitude', 'loudness', 'max_loudness', 'duration', 'hnr_mean', 'hnr_std', 'shimmer', 'jitter', 'energy', 'power', 'pitch_mean', 'pitch_std', 'pitch_min', 'pitch_max', 'pitch_mas', 'voiced_unvoiced_rate']
 
 def get_signature_by_name(name):
     """Returns the respective preprocessing function."""
