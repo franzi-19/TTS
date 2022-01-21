@@ -1,49 +1,61 @@
+import statistics
+
+import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import TTS.speaker_encoder.attack_signatures as attack_signatures
 import TTS.speaker_encoder.compute_embeddings as ce
 import TTS.speaker_encoder.create_plots as create_plots
+from tqdm import tqdm
 
-size = 100 # = None to use all wav files
+size = None # = None to use all wav files
 
 # 4.3
-def plot_asv19_attack_signatures(asv19_path, asv19_output_path, plot_path, latex_filepath):
+def plot_asv19_attack_signatures(asv19_path, asv19_output_path, plot_path):
     asv19_wav_files, asv19_output_files, asv19_labels, gender = ce._get_files(asv19_path, asv19_output_path, size)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
     all_signature_names.append('gender')
-    
+    gender = ce._asssign_gender_id(gender)
+
     embeds = []
-    for idx, wav in tqdm(enumerate(asv19_wav_files)):
+    table = {}
+    for name in tqdm(all_signature_names):
+        sig_function = attack_signatures.get_signature_by_name(name)
         embed = []
-        for name in all_signature_names:
-            sig_function = attack_signatures.get_signature_by_name(name)
-            if name == 'gender': embed.append(gender[idx]) # TODO: assign gender a float number, see normalize_points()
-            else: embed.append(sig_function(wav))
-        embeds.append(embed)
+        for idx, wav in enumerate(asv19_wav_files):
+            if name == 'gender': 
+                embed.append(gender[idx])
+            else: 
+                embed.append(sig_function(wav))
         
-    # TODO: continue testing here
-    embeds = ce.normalize_points(embeds)
+        embed = ce.normalize_points(embed) # TODO move to the end
+        embeds.append(embed)
+        centroid, mean_distance = _calculate_centroid_and_distance(plot_path + 'asv19_attack_signatures_table.tex', embed, asv19_labels)
+        table[name] = [centroid, mean_distance]
 
-    _calculate_centroid_and_distance(latex_filepath, embeds, asv19_labels)
-
-    create_plots.plot_embeddings(embeds, None, plot_path, asv19_labels, "")
+    _table_to_latex(table, ['attack signatures', 'centroid', 'mean distance'], plot_path + 'asv19_attack_signatures_table.tex')
+    create_plots.plot_embeddings(np.transpose(embeds), None, plot_path, asv19_labels, filename='asv19_attack_signatures_plot.png')
 
 def _calculate_centroid_and_distance(latex_filepath, embeds, labels):
     cluster = {key: [] for key in labels}
     for idx, point in enumerate(embeds):
         cluster[labels[idx]].append(point)
 
-    table = {}
+    centroids, mean_distances = [], []
     for cl in cluster:
         centroid, mean_distance = ce.calculate_mean_distance(cluster[cl])
-        table[cl] = [centroid, mean_distance]
+        centroids.append(centroid)
+        mean_distances.append(mean_distance)
 
-    _table_to_latex(table, ['attack ID', 'centroid', 'mean distance'], latex_filepath)
+    return statistics.mean(centroids), statistics.mean(mean_distances)
+
 
 def _table_to_latex(input, header, latex_filepath):
-    df = pd.DataFrame(data=input).T
+    df = pd.DataFrame(data=input)
+    df.columns = [v.replace('_', ' ') for v in list(df)] # make the attack IDs look nice
+    df = df.T # attack ID -> row names
     df.columns = header
+    open(latex_filepath, 'a').close()
     df.to_latex(latex_filepath)
 
 # 4.4.1
@@ -90,5 +102,4 @@ def calculate_table_asv21_sig_metric(config_path, model_path, use_cuda, asv21_pa
 if __name__ == '__main__':
     plot_asv19_attack_signatures(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
                                     '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
-                                    '/home/franzi/masterarbeit/TTS/speaker_encoder/plots_paper/',
-                                    '/home/franzi/masterarbeit/TTS/speaker_encoder/plots_paper/asv19_attack_signatures_table.tex')
+                                    '/home/franzi/masterarbeit/TTS/TTS/speaker_encoder/plots_paper/')
