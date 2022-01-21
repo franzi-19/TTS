@@ -1,15 +1,17 @@
 import os
 
 import umap
-from bokeh.io import save, show
+from bokeh.io import save, export_png
 from bokeh.models import (BoxZoomTool, ColorBar, ColumnDataSource, HoverTool,
                           OpenURL, ResetTool, TapTool)
 from bokeh.palettes import Category10, Category20, Spectral6
 from bokeh.plotting import figure
 from bokeh.transform import factor_cmap, linear_cmap
 
+circle_size = 2
+tick_number_size = "15pt"
 
-def plot_embeddings(embeds, locations, plot_path, labels=None, title=None):
+def plot_embeddings(embeds, locations, plot_path, labels=None, filename='plot.png'): # embeds: array([array([coordinate1, co2]), ...])
     model = umap.UMAP()
     projection = model.fit_transform(embeds)
 
@@ -31,39 +33,34 @@ def plot_embeddings(embeds, locations, plot_path, labels=None, title=None):
                 )
             )
 
-    hover = HoverTool(
-            tooltips=[
-                #("file", "@desc"),
-                ("attack", "@label"),
-            ]
-        )
+    # hover = HoverTool(
+    #         tooltips=[
+    #             #("file", "@desc"),
+    #             ("attack", "@label"),
+    #         ]
+    #     )
 
     if labels != None and labels != []:
         factors = list(set(labels))
         pal_size = max(len(factors), 3)
-        pal = Category10[pal_size]
+        pal = Category20[pal_size]
 
-    p = figure(plot_width=1000, plot_height=600, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
+    p = figure(plot_width=1000, plot_height=600)#, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
 
     if labels != None and labels != []:
-        p.circle('x', 'y',  source=source_wav_stems, color=factor_cmap('label', palette=pal, factors=factors), legend_group='label')
-        p.legend.location = "bottom_left"
-        p.legend.click_policy= "hide"
+        p.circle('x', 'y',  source=source_wav_stems, size=circle_size, color=factor_cmap('label', palette=pal, factors=factors))#, legend_group='label')
+        # p.legend.location = "bottom_left"
+        # p.legend.click_policy= "hide"
     else:
         p.circle('x', 'y',  source=source_wav_stems)
 
-    # url = "http://localhost:8000/@desc"
-    # taptool = p.select(type=TapTool)
-    # taptool.callback = OpenURL(url=url)
-
-    # show(p)
-    
-    if title: filename = f"plot_{title}.html"
-    else: filename = "plot.html"
+    p.xaxis.major_label_text_font_size = tick_number_size
+    p.yaxis.major_label_text_font_size = tick_number_size
 
     file_path = plot_path + filename
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    save(p, file_path, title=title)
+    # save(p, file_path, title=title)
+    export_png(p, filename=file_path)
     print(f'saved plot at {file_path}')
 
 # https://docs.bokeh.org/en/latest/docs/user_guide/styling.html#using-mappers
@@ -87,7 +84,7 @@ def plot_embeddings_continuous(embeds, plot_path, labels, title=None):
     p.add_layout(color_bar, 'right')
 
     if title: filename = f"plot_{title}.html"
-    else: filename = "plot.html"
+    else: filename = f"{filename}.html"
 
     file_path = plot_path + filename
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
