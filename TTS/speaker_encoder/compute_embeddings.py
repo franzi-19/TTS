@@ -504,19 +504,23 @@ def calculate_mean_distance(cluster): # [[x1,y1], [x2,y2], ...]
 
 # centered around 0
 def normalize_points(point_list): 
-    # assign strings an int value
-    if isinstance(point_list[0], str):
-        assign_id = {}
-        for idx, point in enumerate(point_list):
-            if point in assign_id: point_list[idx] = assign_id[point]
-            else: 
-                assign_id.update({point: len(assign_id.keys())})
-                point_list[idx] = assign_id[point]
+    point_list = _asssign_gender_id(point_list)
 
     mean = np.mean(point_list, axis=0)
     std = np.std(point_list, axis=0)
     return (point_list - mean)/std
     # return [(point-mean)/std for point in point_list]
+
+# assign strings an int value
+def _asssign_gender_id(gender_list):
+    if isinstance(gender_list[0], str):
+        assign_id = {}
+        for idx, point in enumerate(gender_list):
+            if point in assign_id: gender_list[idx] = assign_id[point]
+            else: 
+                assign_id.update({point: len(assign_id.keys())})
+                gender_list[idx] = assign_id[point]
+    return gender_list
 
 # for signature = metric
 def calculate_range(point, point_label,  all_points, all_labels, k=5):
