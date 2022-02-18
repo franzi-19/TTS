@@ -1,8 +1,10 @@
+import glob
 import sys
 
 import librosa
 import parselmouth
 from pydub import AudioSegment
+import math
 
 
 # https://librosa.org/doc/main/generated/librosa.pyin.html
@@ -34,30 +36,18 @@ def measure_noise_likeness_librosa(wav_path): # [[3.7553793e-04 3.0664928e-04 8.
 #     return silence / len(sound)
 
 # https://github.com/mueller91/crawler_tts/blob/master/audio_selection/features_from_audio.py#L224
-def get_voiced_unvoiced_rate(wav_path):   # 0.5286343612334802
-    snd = parselmouth.Sound(str(wav_path))
-    pitch = snd.to_pitch()
-
-    voiced_frames = parselmouth.praat.call(pitch, "Count voiced frames")
-    total_frames = parselmouth.praat.call(pitch, "Get number of frames")
-    vuv_rate = voiced_frames / total_frames
-
-    return vuv_rate
-
-# https://parselmouth.readthedocs.io/en/stable/examples/pitch_manipulation.html
-# https://www.fon.hum.uva.nl/praat/download_linux.html
-# https://github.com/drfeinberg/PraatScripts
-# def get_pitch_info(snd): # 175.22250009963122, 39.23073677537671, 81.35743208724539, 240.92413524792198, 273.58519194246514
+# removed because it takes leading/trailing silence into account -> two features in one
+# def get_voiced_unvoiced_rate(wav_path):   # 0.5286343612334802
+#     snd = parselmouth.Sound(str(wav_path))
 #     pitch = snd.to_pitch()
 
-#     pitch_mean = parselmouth.praat.call(pitch, "Get mean", 0.0, 0.0, "Hertz")
-#     pitch_std = parselmouth.praat.call(pitch, "Get standard deviation", 0.0, 0.0, "Hertz")
-#     pitch_min = parselmouth.praat.call(pitch, "Get minimum", 0.0, 0.0, "Hertz", "None")
-#     pitch_max = parselmouth.praat.call(pitch, "Get maximum", 0.0, 0.0, "Hertz", "None")
-#     pitch_mas = parselmouth.praat.call(pitch, "Get mean absolute slope", "Hertz")
+#     voiced_frames = parselmouth.praat.call(pitch, "Count voiced frames")
+#     total_frames = parselmouth.praat.call(pitch, "Get number of frames")
+#     vuv_rate = voiced_frames / total_frames
 
-#     return pitch_mean, pitch_std, pitch_min, pitch_max, pitch_mas
+#     return vuv_rate
 
+# https://www.fon.hum.uva.nl/praat/manual/Sound.html
 def get_pitch_mean(wav_path): # 175.22250009963122
     snd = parselmouth.Sound(str(wav_path))
     pitch = snd.to_pitch()
@@ -96,13 +86,20 @@ def get_intensity_info(audio_path):
 
     return intensity_min, intensity_max, intensity_mean, intensity_std
 
+# https://www.fon.hum.uva.nl/praat/manual/Sound__Get_power___.html
 def get_power(wav_path): # 0.021697740538486117
     snd = parselmouth.Sound(str(wav_path))
-    return snd.get_power()
+    power = snd.get_power()
+    if power > 10: # removes outlier
+        return float('NaN')
+    else: return power
 
 def get_energy(wav_path): # 0.04990480323851807
     snd = parselmouth.Sound(str(wav_path))
-    return snd.get_energy()
+    energy = snd.get_energy()
+    if energy > 10: # removes outlier
+        return float('NaN')
+    else: return energy
 
 def get_jitter(wav_path): # 0.020679496393133184
     snd = parselmouth.Sound(str(wav_path))
@@ -114,13 +111,7 @@ def get_shimmer(wav_path): # 0.13407159808861868
     point_process = parselmouth.praat.call(snd, "To PointProcess (periodic, cc)", 75, 300)
     return parselmouth.praat.call([snd, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6)
 
-# def get_harmonity_info(snd): # 11.343795497737961, 6.498392039266402
-#     harmonicity = snd.to_harmonicity()
-#     hnr_mean = parselmouth.praat.call(harmonicity, "Get mean", 0.0, 0.0)
-#     hnr_std = parselmouth.praat.call(harmonicity, "Get standard deviation", 0.0, 0.0)
-
-#     return hnr_mean, hnr_std
-
+# https://www.fon.hum.uva.nl/praat/manual/Sound__To_Harmonicity__ac____.html
 def get_hnr_mean(wav_path): # 11.343795497737961
     snd = parselmouth.Sound(str(wav_path))
     harmonicity = snd.to_harmonicity()
@@ -129,7 +120,7 @@ def get_hnr_mean(wav_path): # 11.343795497737961
 def get_hnr_std(wav_path): # 6.498392039266402
     snd = parselmouth.Sound(str(wav_path))
     harmonicity = snd.to_harmonicity()
-    return parselmouth.praat.call(harmonicity, "Get mean", 0.0, 0.0)
+    return parselmouth.praat.call(harmonicity, "Get standard deviation", 0.0, 0.0)
 
 # def get_volume(sound): # 32767, -16.637252347739015, -0.0002650763603796191, 2.3
 #     from pydub import AudioSegment
@@ -166,6 +157,16 @@ def get_gender(wav_path): # dummy method
     return 0
 
 
+# def apply_all_signature_one_result(wav_path):
+#     peak_amplitude = get_peak_amplitude(wav_path)
+#     max_loudness = get_max_loudness(wav_path)
+
+#     return peak_amplitude, max_loudness
+
+# def get_all_names_one_result():
+#     return ['peak_amplitude', 'max_loudness']
+
+
 def apply_all_signature_one_result(wav_path):
     # lead_trail_silence = get_lead_trail_silence_rate(wav_path)
     peak_amplitude = get_peak_amplitude(wav_path)
@@ -181,19 +182,19 @@ def apply_all_signature_one_result(wav_path):
     pow = get_power(wav_path)
     pitch_mean = get_pitch_mean(wav_path)
     pitch_std = get_pitch_std(wav_path)
-    pitch_min = get_pitch_min(wav_path)
-    pitch_max = get_pitch_max(wav_path)
+    pitch_min = get_pitch_min(wav_path) 
+    pitch_max = get_pitch_max(wav_path) 
     pitch_mas = get_pitch_mas(wav_path)
-    vuv_r = get_voiced_unvoiced_rate(wav_path)
+    # vuv_r = get_voiced_unvoiced_rate(wav_path)
 
     import math
-    if math.isnan(peak_amplitude) or math.isnan(loudness) or math.isnan(max_loudness) or math.isnan(duration) or math.isnan(hnr_mean) or math.isnan(hnr_std) or math.isnan(shim) or math.isnan(jit) or math.isnan(en) or math.isnan(pow) or math.isnan(pitch_mean) or math.isnan(pitch_std) or math.isnan(pitch_min) or math.isnan(pitch_max) or math.isnan(pitch_mas) or math.isnan(vuv_r):
+    if math.isnan(peak_amplitude) or math.isnan(loudness) or math.isnan(max_loudness) or math.isnan(duration) or math.isnan(hnr_mean) or math.isnan(hnr_std) or math.isnan(shim) or math.isnan(jit) or math.isnan(en) or math.isnan(pow) or math.isnan(pitch_mean) or math.isnan(pitch_std) or math.isnan(pitch_min) or math.isnan(pitch_max) or math.isnan(pitch_mas):
         print(wav_path) # /opt/franzi/datasets/ASVspoof2021_LA_eval/flac/LA_E_8762729.flac
-
-    return peak_amplitude, loudness, max_loudness, duration, hnr_mean, hnr_std, shim, jit, en, pow, pitch_mean, pitch_std, pitch_min, pitch_max, pitch_mas, vuv_r
+        
+    return peak_amplitude, loudness, max_loudness, duration, hnr_mean, hnr_std, shim, jit, en, pow, pitch_mean, pitch_std, pitch_min, pitch_max, pitch_mas
 
 def get_all_names_one_result():
-    return ['peak_amplitude', 'loudness', 'max_loudness', 'duration', 'hnr_mean', 'hnr_std', 'shimmer', 'jitter', 'energy', 'power', 'pitch_mean', 'pitch_std', 'pitch_min', 'pitch_max', 'pitch_mas', 'voiced_unvoiced_rate']
+    return ['peak_amplitude', 'loudness', 'max_loudness', 'duration', 'hnr_mean', 'hnr_std', 'shimmer', 'jitter', 'energy', 'power', 'pitch_mean', 'pitch_std', 'pitch_min', 'pitch_max', 'pitch_mas']
 
 def get_signature_by_name(name):
     """Returns the respective preprocessing function."""
@@ -203,7 +204,8 @@ def get_signature_by_name(name):
 
 
 if __name__ == '__main__':
-    path = "test_audio/LA_E_9999987.flac"
+    path = '/opt/franzi/datasets/ASVspoof2021_LA_eval/flac/LA_E_2123253.flac' # working
+    # path = "/opt/franzi/datasets/ASVspoof2021_LA_eval/flac/LA_E_8360972.flac" # not working
     print(apply_all_signature_one_result(path))
 
 
