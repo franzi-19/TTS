@@ -267,15 +267,20 @@ def _get_files(folder_path, output_path, size):
             all_gender = all_gender + gender
             
             assert len(all_wav_files) == len(all_labels), "found different number of wav files and labels"
+
+        output_files = [wav_file.replace(folder_path, output_path).replace(wav_paths[0], output_path)
+                    .replace(wav_paths[1], output_path).replace(wav_paths[2], output_path).replace(
+                    '.wav', '.npy').replace('.flac', '.npy') for wav_file in all_wav_files]
     else:
         all_wav_files = glob.glob(folder_path + '/**/*.wav', recursive=True)
         if len(all_wav_files) == 0:
             all_wav_files = glob.glob(folder_path + '/**/*.flac', recursive=True)
 
+        output_files = [wav_file.replace(folder_path, output_path).replace(
+                    '.wav', '.npy').replace('.flac', '.npy') for wav_file in all_wav_files]
+
     assert len(all_wav_files) != 0, "No audio files found"
 
-    output_files = [wav_file.replace(folder_path, output_path).replace(
-        '.wav', '.npy').replace('.flac', '.npy') for wav_file in all_wav_files]
 
     for output_file in output_files:
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -284,13 +289,14 @@ def _get_files(folder_path, output_path, size):
         idx = random.sample(range(len(all_wav_files)), size)
         all_wav_files = list(np.array(all_wav_files)[idx])
         output_files = list(np.array(output_files)[idx])
-        all_gender = list(np.array(all_gender)[idx])
+        if all_gender != []: all_gender = list(np.array(all_gender)[idx])
         if all_labels != []: all_labels = list(np.array(all_labels)[idx])
 
     return all_wav_files, output_files, all_labels, all_gender
 
 def _create_embeddings(wav_files, output_files, ap, model, use_cuda):
     all_embedds = []
+    print(f'Example for save path: {output_files[0]}')
     for idx, wav_file in enumerate(tqdm(wav_files)):
         if not os.path.exists(output_files[idx]):
             mel_spec = ap.melspectrogram(ap.load_wav(wav_file, sr=ap.sample_rate)).T
@@ -387,6 +393,7 @@ def label_based_on_signatures(train_path, train_output_path, config_path, model_
     train_wav_files, train_output_files, train_labels, gender = _get_files(train_path, train_output_path, size)
     train_embedd = _create_embeddings(train_wav_files, train_output_files, ap, model, use_cuda)
 
+    print(len(train_wav_files))
     signatures, names = _get_signature_labels(train_wav_files, gender)
     for sig, name in (zip(signatures, names)):
         create_plots.plot_embeddings_continuous(train_embedd, plot_path, sig, f"{title}_{name}")
@@ -397,8 +404,11 @@ def _get_signature_labels(wav_files, gender):
         all_sig.append(attack_signatures.apply_all_signature_one_result(wav))
     result_lists = list(map(list, zip(*all_sig)))
 
-    result_lists.append(gender) 
-    return result_lists, attack_signatures.get_all_names_one_result() + ['gender']
+    names = attack_signatures.get_all_names_one_result()
+    if gender != []: 
+        result_lists.append(gender) 
+        names = names  + ['gender']
+    return result_lists, names
 
 # ---------
 # sig = feature
@@ -499,15 +509,15 @@ def _write_infos(dict, path, header=['signature', '(centroid, mean_distance)']):
 # for siganture = feature
 def calculate_mean_distance(cluster): # [[x1,y1], [x2,y2], ...]
     centroid = np.mean(cluster, axis=0)
-    mean_distance = sum([point - centroid for point in np.abs(cluster)]) / len(cluster)
+    mean_distance = sum([(point - centroid)**2 for point in cluster]) / len(cluster)
     return centroid, mean_distance
 
 # centered around 0
 def normalize_points(point_list): 
     point_list = _asssign_gender_id(point_list)
 
-    mean = np.mean(point_list, axis=0)
-    std = np.std(point_list, axis=0)
+    mean = np.nanmean(point_list, axis=0)
+    std = np.nanstd(point_list, axis=0)
     return (point_list - mean)/std
     # return [(point-mean)/std for point in point_list]
 
@@ -534,7 +544,7 @@ def calculate_range(point, point_label,  all_points, all_labels, k=5):
     knn_labels = [all_labels[num] for num in knn.indices.numpy()]
     knn_labels.append(point_label)
 
-    return min(knn_labels), max(knn_labels)
+    return np.nanmin(knn_labels), np.nanmax(knn_labels)
 
 
 if __name__ == '__main__':
@@ -547,12 +557,12 @@ if __name__ == '__main__':
     #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
     #                             True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
     #                             'signture_label')
-    # label_based_on_signatures(  '/opt/franzi/datasets/ASVspoof2021_LA_eval',
-    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/',
-    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
-    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
-    #                             True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/plot/',
-    #                             'signture_label')
+    label_based_on_signatures(  '/opt/franzi/datasets/ASVspoof2021_LA_eval',
+                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/',
+                                '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
+                                '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
+                                True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2021_LA_eval/plot/',
+                                'signture_label')
 
 
     # plot_based_on_signatures(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
@@ -565,14 +575,14 @@ if __name__ == '__main__':
     #                             'signture_embedd')
 
 
-    quantify_feature_clusters(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
-                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
-                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
-                                'signature_feature_centroid')
-    quantify_metric_cluster(  '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
-                                '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
-                                '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
-                                '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
-                                True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/')
+    # quantify_feature_clusters(   '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/',
+    #                             'signature_feature_centroid')
+    # quantify_metric_cluster(  '/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_cm_protocols/',
+    #                             '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/',
+    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/config.json',
+    #                             '/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/best_model.pth.tar',
+    #                             True, '/home/franzi/masterarbeit/embeddings/lstm_November-12-2021_trim_silence/ASVspoof2019_LA/plot/')
     
 
