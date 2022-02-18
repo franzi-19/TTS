@@ -4,13 +4,14 @@ import re
 import sys
 from glob import glob
 from pathlib import Path
+import csv
 
 import numpy as np
 from tqdm import tqdm
 from TTS.tts.utils.generic_utils import split_dataset
 
 
-def load_meta_data(datasets, dataset_folder, split_info):
+def load_meta_data(datasets, dataset_folder, split_info, output_path=None):
     meta_data_train_all = []
     meta_data_test_all = []
 
@@ -38,7 +39,7 @@ def load_meta_data(datasets, dataset_folder, split_info):
         meta_data_train_all += meta_data_train
         meta_data_test_all += meta_data_test
 
-    meta_data_train_all, meta_data_test = split_train_set(split_info, meta_data_train_all)
+    meta_data_train_all, meta_data_test = split_train_set(split_info, meta_data_train_all, output_path)
     meta_data_test_all += meta_data_test
 
     return meta_data_train_all, meta_data_test_all
@@ -49,7 +50,7 @@ def get_preprocessor_by_name(name):
     thismodule = sys.modules[__name__]
     return getattr(thismodule, name.lower())
 
-def split_train_set(split_info, meta_data_train_all):
+def split_train_set(split_info, meta_data_train_all, output_path):
     meta_data_train = meta_data_train_all
     meta_data_test = []
 
@@ -64,6 +65,8 @@ def split_train_set(split_info, meta_data_train_all):
             meta_data_test = list(test_selected)
             meta_data_train = list(train_selected)
 
+            _write_filenames_to_file(meta_data_test, output_path + '/random_10_percent_test_filenames.csv')
+
         elif split_info == "split_4_speaker":
             selected_classes = random.sample(_get_classes(meta_data_train_all), 4)
             selected_items_idx = _get_all_id_from_classes(meta_data_train_all, selected_classes)
@@ -73,6 +76,8 @@ def split_train_set(split_info, meta_data_train_all):
 
             meta_data_test = list(test_selected)
             meta_data_train = list(train_selected)
+
+            _write_filenames_to_file(meta_data_test, output_path + '/split_4_speaker_test_filenames.csv')
 
         print(f" | > Train/Test split with {split_info}: Splitting all {len(meta_data_train_all)} found training data in {len(meta_data_train)} files for training and {len(meta_data_test)} files for testing")
             
@@ -87,6 +92,13 @@ def _get_label(item):
 
 def _get_all_id_from_classes(all, selected_classes):
     return [idx for idx, item in enumerate(all) if _get_label(item) in selected_classes]
+
+def _write_filenames_to_file(items, output_path):
+    filenames = [file_name for _, file_name, _ in items]
+    with open(output_path, 'w', newline='') as myfile:
+        wr = csv.writer(myfile)
+        wr.writerow(filenames)
+    print(f" | > Saved split test names to {output_path}")
 
 
 ############### dataset functions
