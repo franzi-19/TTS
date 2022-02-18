@@ -8,10 +8,11 @@ from bokeh.palettes import Category10, Category20, Spectral6
 from bokeh.plotting import figure
 from bokeh.transform import factor_cmap, linear_cmap
 
-circle_size = 2
-tick_number_size = "15pt"
+CIRCLE_SIZE = 2
+CROSS_SIZE = 2
+TICK_NUMBER_SIZE = "15pt"
 
-def plot_embeddings(embeds, locations, plot_path, labels=None, filename='plot.png'): # embeds: array([array([coordinate1, co2]), ...])
+def plot_embeddings(embeds, plot_path, labels=None, filename='plot.png'): # embeds: array([array([coordinate1, co2]), ...])
     model = umap.UMAP()
     projection = model.fit_transform(embeds)
 
@@ -43,19 +44,24 @@ def plot_embeddings(embeds, locations, plot_path, labels=None, filename='plot.pn
     if labels != None and labels != []:
         factors = list(set(labels))
         pal_size = max(len(factors), 3)
-        pal = Category20[pal_size]
+        if pal_size <= 10:
+            pal = Category10[pal_size]
+        elif pal_size <= 20:
+            pal = Category20[pal_size]
+        else:
+            raise ValueError('Too many different labels to plot')
 
     p = figure(plot_width=1000, plot_height=600)#, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
 
     if labels != None and labels != []:
-        p.circle('x', 'y',  source=source_wav_stems, size=circle_size, color=factor_cmap('label', palette=pal, factors=factors))#, legend_group='label')
+        p.circle('x', 'y',  source=source_wav_stems, size=CIRCLE_SIZE, color=factor_cmap('label', palette=pal, factors=factors))#, legend_group='label')
         # p.legend.location = "bottom_left"
         # p.legend.click_policy= "hide"
     else:
         p.circle('x', 'y',  source=source_wav_stems)
 
-    p.xaxis.major_label_text_font_size = tick_number_size
-    p.yaxis.major_label_text_font_size = tick_number_size
+    p.xaxis.major_label_text_font_size = TICK_NUMBER_SIZE
+    p.yaxis.major_label_text_font_size = TICK_NUMBER_SIZE
 
     file_path = plot_path + filename
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -92,7 +98,7 @@ def plot_embeddings_continuous(embeds, plot_path, labels, title=None):
     print(f'saved plot at {file_path}')
 
 
-def plot_two_sets(embeds_1, labels_1, embeds_2, labels_2, locations_1, locations_2, plot_path, title):
+def plot_two_sets(embeds_1, labels_1, embeds_2, labels_2, plot_path, filename='plot.png'):
     model = umap.UMAP()
     len_1 = len(embeds_1)
     projection = model.fit_transform(embeds_1 + embeds_2)
@@ -100,25 +106,28 @@ def plot_two_sets(embeds_1, labels_1, embeds_2, labels_2, locations_1, locations
     data_1 = ColumnDataSource(data=dict(x = projection.T[0].tolist()[:len_1], y = projection.T[1].tolist()[:len_1], label=labels_1))    # , desc=locations_1, label=labels_1))
     data_2 = ColumnDataSource(data=dict(x = projection.T[0].tolist()[len_1:], y = projection.T[1].tolist()[len_1:], label=labels_2))    # , desc=locations_2, label=labels_2))
 
-    hover = HoverTool(tooltips=[ ("attack", "@label"),])   # [("file", "@desc"), ("speaker", "@label"),])
+    # hover = HoverTool(tooltips=[ ("attack", "@label"),])   # [("file", "@desc"), ("speaker", "@label"),])
 
-    p = figure(plot_width=1000, plot_height=600, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
+    p = figure(plot_width=1000, plot_height=600) #, tools=[hover,BoxZoomTool(), ResetTool(), TapTool()])
 
     factors_1 = list(set(labels_1))
     pal_size_1 = max(len(factors_1), 3)
     pal_1 = Category20[pal_size_1]
 
-    p.circle('x', 'y',  source=data_1, color=factor_cmap('label', palette=pal_1, factors=factors_1), legend_group='label')
-    p.cross('x', 'y',  source=data_2, color=factor_cmap('label', palette=pal_1, factors=factors_1), size=10, legend_group='label')
+    p.circle('x', 'y',  source=data_1, color=factor_cmap('label', palette=pal_1, factors=factors_1), size=CIRCLE_SIZE)#, legend_group='label')
+    p.cross('x', 'y',  source=data_2, color=factor_cmap('label', palette=pal_1, factors=factors_1), size=CROSS_SIZE)#, legend_group='label')
 
-    p.legend.location = "top_left"
-    p.legend.click_policy= "hide"
-    p.legend.label_text_font_size = "5pt"
+    # p.legend.location = "top_left"
+    # p.legend.click_policy= "hide"
+    # p.legend.label_text_font_size = "5pt"
 
-    filename = f"plot_{title}.html"
+    p.xaxis.major_label_text_font_size = TICK_NUMBER_SIZE
+    p.yaxis.major_label_text_font_size = TICK_NUMBER_SIZE
+
     file_path = plot_path + filename
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    save(p, file_path, title=title)
+    # save(p, file_path, title=title)
+    export_png(p, filename=file_path)
     print(f'saved plot at {file_path}')
 
 def just_plot(x, y, plot_path, labels, title=None):
