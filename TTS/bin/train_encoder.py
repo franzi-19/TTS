@@ -288,7 +288,7 @@ def main(args):  # pylint: disable=redefined-outer-name
     print("\n > Model has {} parameters".format(num_params), flush=True)
 
     # pylint: disable=redefined-outer-name
-    meta_data_train, meta_data_test = load_meta_data(c.datasets, c.dataset_settings['dataset_folder'], c.dataset_settings['split_train_data'])
+    meta_data_train, meta_data_test = load_meta_data(c.datasets, c.dataset_settings['dataset_folder'], c.dataset_settings['split_train_data'], OUT_PATH)
 
     global_step = args.restore_step
     _, global_step = train(model, criterion, optimizer, scheduler, ap,
