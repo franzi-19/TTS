@@ -133,7 +133,10 @@ def get_hnr_std(wav_path): # 6.498392039266402
 
 def get_peak_amplitude(wav_path): # highest amplitude, 32767
     sound = AudioSegment.from_file(wav_path)
-    return sound.max
+    peak_amplitude = sound.max
+    if peak_amplitude < 25000: # removes outlier
+        return float('NaN')
+    else: return peak_amplitude
 
 def get_loudness(wav_path): # loudness in dBFS (Decibels relative to full scale, db relative to the maximum possible loudness), -16.637252347739015
     sound = AudioSegment.from_file(wav_path)
@@ -141,7 +144,10 @@ def get_loudness(wav_path): # loudness in dBFS (Decibels relative to full scale,
 
 def get_max_loudness(wav_path): # highest amplitude in dBFS (relative to the highest possible amplitude value), -0.0002650763603796191
     sound = AudioSegment.from_file(wav_path)
-    return sound.max_dBFS
+    max_loud = sound.max_dBFS
+    if max_loud < -1: # removes outlier
+        return float('NaN')
+    else: return max_loud
 
 def get_duration(wav_path): # duration in seconds, 2.3
     sound = AudioSegment.from_file(wav_path)

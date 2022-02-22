@@ -7,7 +7,7 @@ import TTS.speaker_encoder.compute_embeddings as ce
 import TTS.speaker_encoder.create_plots as create_plots
 from tqdm import tqdm
 
-SIZE = None # = None to use all wav files
+SIZE = 10000 # = None to use all wav files
 
 model = 'own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/'
 random_split_model = 'own_lstm_asvspoof/asv19_random_10_percent-January-31-2022_01+21PM-debug/'
@@ -70,8 +70,8 @@ def plot_asv19_attack_signatures(): # 36 hours for all asv19
         centroid, mean_distance = _calculate_centroid_and_distance(embed, asv19_labels)
         table[name] = [centroid, mean_distance]
 
-    _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table_3.tex')
-    create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels, filename='asv19_attack_signatures_plot_3.png')
+    _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
+    create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels, filename='asv19_attack_signatures_plot.png')
 
 # mdcc/variance
 def _calculate_centroid_and_distance(embeds, labels):
@@ -155,7 +155,6 @@ def plot_asv19_asv21():
     create_plots.plot_two_sets(asv19_embedd, asv19_labels, asv21_embedd, asv21_label, PLOT_PATH, 'asv19_asv21.png')
 
 # 4.4.2
-# TODO figure out what happend with energy and power
 def calculate_table_asv21_sig_metric(k=5):
     model, ap = ce._load_model(MODEL_CONFIG, MODEL_PATH, USE_CUDA)
 
@@ -176,7 +175,7 @@ def calculate_table_asv21_sig_metric(k=5):
             coll_max.append(found_max)
         result_dict[name] = [np.nanmean(coll_min), np.nanmean(coll_max)]
 
-    _table_to_latex(result_dict, [f'min label for k={k}', f'max label for k={k}'],  PLOT_PATH + 'asv21_signatures_metric_table_4.tex')
+    _table_to_latex(result_dict, [f'min label for k={k}', f'max label for k={k}'],  PLOT_PATH + 'asv21_signatures_metric_table.tex')
 
 if __name__ == '__main__':
     # plot_asv19_attack_signatures()
