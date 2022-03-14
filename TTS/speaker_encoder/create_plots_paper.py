@@ -46,8 +46,7 @@ PLOT_PATH = '/home/franzi/masterarbeit/TTS/TTS/speaker_encoder/plots_paper/'
 
 
 # 4.3
-# TODO: embedd contains NAN
-def plot_asv19_attack_signatures(): # 36 hours for all asv19
+def plot_asv19_attack_signatures():
     asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
@@ -140,19 +139,30 @@ def _write_to_csv(csv_file_path, header, content):
         writer.writerow(header)
         writer.writerow(content)
 
-# 4.4.2
+# 4.4.2, not used anymore
 def plot_asv19_asv21():
     model, ap = ce._load_model(MODEL_CONFIG, MODEL_PATH, USE_CUDA)
 
-    asv19_wav_files, asv19_output_files, asv19_labels, _ = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
-    asv21_wav_files, asv21_output_files, _, _ = ce._get_files(ASV21_PATH, ASV21_OUTPUT_PATH_MODEL, SIZE)
+    asv19_wav_files, asv19_output_files, asv19_labels, _ = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, None)
+    asv21_wav_files, asv21_output_files, _, _ = ce._get_files(ASV21_PATH, ASV21_OUTPUT_PATH_MODEL, None)
 
     asv19_embedd = ce._create_embeddings(asv19_wav_files, asv19_output_files, ap, model, USE_CUDA)
     asv21_embedd = ce._create_embeddings(asv21_wav_files, asv21_output_files, ap, model, USE_CUDA)
 
     asv21_label = ['unknown']* len(asv21_embedd)
 
-    create_plots.plot_two_sets(asv19_embedd, asv19_labels, asv21_embedd, asv21_label, PLOT_PATH, 'asv19_asv21.png')
+    create_plots.plot_two_sets(asv19_embedd, asv19_labels, asv21_embedd, asv21_label, PLOT_PATH, 'asv19_asv21_1.png')
+
+# 4.4.2
+def plot_asv21():
+    model, ap = ce._load_model(MODEL_CONFIG, MODEL_PATH, USE_CUDA)
+
+    asv21_wav_files, asv21_output_files, _, _ = ce._get_files(ASV21_PATH, ASV21_OUTPUT_PATH_MODEL, None)
+    asv21_embedd = ce._create_embeddings(asv21_wav_files, asv21_output_files, ap, model, USE_CUDA)
+    asv21_label = ['unknown']* len(asv21_embedd)
+
+    create_plots.plot_embeddings(asv21_embedd, PLOT_PATH, asv21_label, filename='asv21_1.png')
+
 
 # 4.4.2
 def calculate_table_asv21_sig_metric(k=5):
@@ -177,9 +187,32 @@ def calculate_table_asv21_sig_metric(k=5):
 
     _table_to_latex(result_dict, [f'min label for k={k}', f'max label for k={k}'],  PLOT_PATH + 'asv21_signatures_metric_table.tex')
 
+def create_feature_box_plot(): # 3 hours
+    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
+
+    all_signature_names = attack_signatures.get_all_names_one_result()
+    all_signature_names.append('gender')
+    gender = ce._asssign_gender_id(gender)
+
+    for name in tqdm(all_signature_names):
+        sig_function = attack_signatures.get_signature_by_name(name)
+        embed = []
+        for idx, wav in enumerate(asv19_wav_files):
+            if name == 'gender': 
+                embed.append(gender[idx])
+            else: 
+                embed.append(sig_function(wav))
+        
+        embed = ce.normalize_points(embed)
+
+        create_plots.plot_box_plot(asv19_labels, embed, PLOT_PATH, f'box_plot_{name}.png')
+
+
 if __name__ == '__main__':
     # plot_asv19_attack_signatures()
-    # plot_asv19_asv21()
-    calculate_table_asv21_sig_metric() 
+    # calculate_table_asv21_sig_metric() 
     # plot_split(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, RANDOM_SPLIT_CSV, 'asv19_random_10_split', ASV19_OUTPUT_PATH_RANDOM_SPLIT)
     # plot_split(SPEAKER_SPLIT_MODEL_CONFIG, SPEAKER_SPLIT_MODEL_PATH, SPEAKER_SPLIT_CSV, 'asv19_4_speaker_split_3', ASV19_OUTPUT_PATH_SPEAKER_SPLIT)
+    # plot_asv19_asv21()
+    # plot_asv21()
+    create_feature_box_plot()
