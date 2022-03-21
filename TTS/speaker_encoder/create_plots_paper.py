@@ -17,7 +17,7 @@ import TTS.speaker_encoder.compute_embeddings as ce
 import TTS.speaker_encoder.create_plots as create_plots
 from tqdm import tqdm
 
-SIZE = 1000 # = None to use all wav files
+SIZE = 1000  # = None to use all wav files
 
 model = 'own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/'
 random_split_model = 'own_lstm_asvspoof/asv19_random_10_percent-January-31-2022_01+21PM-debug/'
@@ -60,7 +60,7 @@ os.makedirs(SIG_CACHE, exist_ok=True)
 
 # 4.3
 def plot_asv19_attack_signatures():
-    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
+    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_RANDOM_SPLIT, SIZE)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
     all_signature_names.append('gender')
@@ -83,16 +83,18 @@ def plot_asv19_attack_signatures():
         table[name] = [centroid, mean_distance]
 
     _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
-    create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels, filename='asv19_attack_signatures_plot.png')
+    create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels,
+                                 filename='asv19_attack_signatures_plot.png')
 
 
 # 4.3
 def downstream_performance(which):
-    asv19_wav_files, asv19_output_files, asv19_labels, gender = ce._get_files(ASV19_PATH,
-                                                                              SIG_CACHE,
-                                                                              # ASV19_OUTPUT_PATH_MODEL,
-                                                                              SIZE,
-                                                                              non_random=True)
+    asv19_wav_files, asv19_output_files, asv19_labels, gender = ce._get_files(ASV19_PATH, SIG_CACHE,
+        # ASV19_OUTPUT_PATH_MODEL,
+        SIZE,
+        filter_by_file='/home/franzi/masterarbeit/speaker_encoder_models/own_lstm_asvspoof/asv19_random_10_percent'
+                       '-January-31-2022_01+21PM-debug/random_10_percent_test_filenames.csv',
+        non_random=True)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
     all_signature_names.append('gender')
@@ -128,8 +130,7 @@ def downstream_performance(which):
     elif which == 'neural':
         model, ap = ce._load_model(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, USE_CUDA)
         X = ce._create_embeddings(asv19_wav_files, asv19_output_files, ap, model, USE_CUDA)
-        X = numpy.stack(X)
-        # create_plots.plot_embeddings(X, SIG_CACHE, asv19_labels, filename='emb_plot.png')
+        X = numpy.stack(X)  # create_plots.plot_embeddings(X, SIG_CACHE, asv19_labels, filename='emb_plot.png')
     else:
         raise ValueError(which)
         exit(0)
@@ -138,19 +139,18 @@ def downstream_performance(which):
     label_encoder = LabelEncoder()
     labels_int = label_encoder.fit_transform(asv19_labels)
     ump = umap.UMAP()
-    X = ump.fit_transform(X)
+    X2d = ump.fit_transform(X)
     for label in np.unique(labels_int):
-        i = np.where(labels_int == label)
-        plt.scatter(X[i, 0], X[i, 1], label=i)
+        i = [x == label for x in labels_int]
+        plt.scatter(X2d[i, 0], X2d[i, 1], label=label)
     plt.show()
-    exit(0)
 
     # _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
     # create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels,
     # filename='asv19_attack_signatures_plot.png')
 
-    label_encoder = LabelEncoder()
-    labels_int = label_encoder.fit_transform(asv19_labels)
+    # label_encoder = LabelEncoder()
+    # labels_int = label_encoder.fit_transform(asv19_labels)
     print(f"Found {len(set(labels_int))} labels")
     model = MLPClassifier(hidden_layer_sizes=(50, 50, 50), max_iter=2000)
 
@@ -178,29 +178,33 @@ def _calculate_centroid_and_distance(embeds, labels):
 
     return np.nanmean(centroids), np.nanmean(mean_distances)
 
+
 def _table_to_latex(input, header, latex_filepath):
     df = pd.DataFrame(data=input)
     df.columns = [v.replace('_', ' ') for v in list(df)]
-    df.sort_index(axis=1, inplace=True) 
-    df = df.applymap(lambda x: round(x,2))
-    df = df.T # signature -> row names
+    df.sort_index(axis=1, inplace=True)
+    df = df.applymap(lambda x: round(x, 2))
+    df = df.T  # signature -> row names
     df.columns = header
 
     avg = df.mean(axis=0)
-    df = df.append(pd.DataFrame([[round(avg[header[0]],2),round(avg[header[1]],2)]], columns=header, index=['average']))
+    df = df.append(
+        pd.DataFrame([[round(avg[header[0]], 2), round(avg[header[1]], 2)]], columns=header, index=['average']))
 
     open(latex_filepath, 'a').close()
     df.to_latex(latex_filepath)
     print(f'saved to {latex_filepath}')
 
+
 # 4.4.1
 def plot_split(model_config, model_path, filenames_csv_path, filename, asv19_output_path):
     model, ap = ce._load_model(model_config, model_path, USE_CUDA)
-    
+
     test_wav_files = _get_files_from_csv(filenames_csv_path)
 
     asv19_wav_files, asv19_output_files, asv19_labels, _ = ce._get_files(ASV19_PATH, asv19_output_path, None)
-    test_output_files, test_labels = _match_with_whole_set(test_wav_files, asv19_wav_files, asv19_output_files, asv19_labels)
+    test_output_files, test_labels = _match_with_whole_set(test_wav_files, asv19_wav_files, asv19_output_files,
+                                                           asv19_labels)
 
     test_embeds = ce._create_embeddings(test_wav_files, test_output_files, ap, model, USE_CUDA)
 
@@ -208,12 +212,14 @@ def plot_split(model_config, model_path, filenames_csv_path, filename, asv19_out
     centroid, mean_distance = _calculate_centroid_and_distance(test_embeds, test_labels)
     _write_to_csv(PLOT_PATH + filename + '.csv', ['centroid', 'mean_distance'], [centroid, mean_distance])
 
-    create_plots.plot_embeddings(test_embeds, PLOT_PATH, test_labels, filename=filename+'.png')
+    create_plots.plot_embeddings(test_embeds, PLOT_PATH, test_labels, filename=filename + '.png')
+
 
 def _get_files_from_csv(csv_file):
     with open(csv_file, mode='r') as f:
         reader = csv.reader(f, delimiter=",")
-        return next(reader) 
+        return next(reader)
+
 
 def _match_with_whole_set(wav_files, set_wav_files, set_output_files, set_labels):
     labels, output_files = [], []
@@ -225,11 +231,13 @@ def _match_with_whole_set(wav_files, set_wav_files, set_output_files, set_labels
     print(f'found labels: {list(set(labels))}')
     return output_files, labels
 
+
 def _write_to_csv(csv_file_path, header, content):
     with open(csv_file_path, 'w') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(header)
         writer.writerow(content)
+
 
 # 4.4.2, not used anymore
 def plot_asv19_asv21():
@@ -241,9 +249,10 @@ def plot_asv19_asv21():
     asv19_embedd = ce._create_embeddings(asv19_wav_files, asv19_output_files, ap, model, USE_CUDA)
     asv21_embedd = ce._create_embeddings(asv21_wav_files, asv21_output_files, ap, model, USE_CUDA)
 
-    asv21_label = ['unknown']* len(asv21_embedd)
+    asv21_label = ['unknown'] * len(asv21_embedd)
 
     create_plots.plot_two_sets(asv19_embedd, asv19_labels, asv21_embedd, asv21_label, PLOT_PATH, 'asv19_asv21_1.png')
+
 
 # 4.4.2
 def plot_asv21():
@@ -251,7 +260,7 @@ def plot_asv21():
 
     asv21_wav_files, asv21_output_files, _, _ = ce._get_files(ASV21_PATH, ASV21_OUTPUT_PATH_MODEL, None)
     asv21_embedd = ce._create_embeddings(asv21_wav_files, asv21_output_files, ap, model, USE_CUDA)
-    asv21_label = ['unknown']* len(asv21_embedd)
+    asv21_label = ['unknown'] * len(asv21_embedd)
 
     create_plots.plot_embeddings(asv21_embedd, PLOT_PATH, asv21_label, filename='asv21_1.png')
 
@@ -268,7 +277,8 @@ def calculate_table_asv21_sig_metric(k=5):
     for sig_labels, name in tqdm(zip(signature_labels, names)):
         labels = ce.normalize_points(sig_labels)
 
-        print(f'{name}: {np.nanmax(sig_labels)} {np.nanmin(sig_labels)} {np.nanmean(sig_labels)} {np.nanmedian(sig_labels)}')
+        print(
+            f'{name}: {np.nanmax(sig_labels)} {np.nanmin(sig_labels)} {np.nanmean(sig_labels)} {np.nanmedian(sig_labels)}')
 
         coll_min, coll_max = [], []
         for idx, current in enumerate(asv21_embedd):
@@ -277,9 +287,11 @@ def calculate_table_asv21_sig_metric(k=5):
             coll_max.append(found_max)
         result_dict[name] = [np.nanmean(coll_min), np.nanmean(coll_max)]
 
-    _table_to_latex(result_dict, [f'min label for k={k}', f'max label for k={k}'],  PLOT_PATH + 'asv21_signatures_metric_table.tex')
+    _table_to_latex(result_dict, [f'min label for k={k}', f'max label for k={k}'],
+                    PLOT_PATH + 'asv21_signatures_metric_table.tex')
 
-def create_feature_box_plot(): # 3 hours
+
+def create_feature_box_plot():  # 3 hours
     asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
@@ -290,21 +302,16 @@ def create_feature_box_plot(): # 3 hours
         sig_function = attack_signatures.get_signature_by_name(name)
         embed = []
         for idx, wav in enumerate(asv19_wav_files):
-            if name == 'gender': 
+            if name == 'gender':
                 embed.append(gender[idx])
-            else: 
+            else:
                 embed.append(sig_function(wav))
-        
+
         embed = ce.normalize_points(embed)
 
         create_plots.plot_box_plot(asv19_labels, embed, PLOT_PATH, f'box_plot_{name}.png')
 
 
 if __name__ == '__main__':
-    downstream_performance('neural')
-    # calculate_table_asv21_sig_metric() 
-    # plot_split(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, RANDOM_SPLIT_CSV, 'asv19_random_10_split', ASV19_OUTPUT_PATH_RANDOM_SPLIT)
-    # plot_split(SPEAKER_SPLIT_MODEL_CONFIG, SPEAKER_SPLIT_MODEL_PATH, SPEAKER_SPLIT_CSV, 'asv19_4_speaker_split_3', ASV19_OUTPUT_PATH_SPEAKER_SPLIT)
-    # plot_asv19_asv21()
-    # plot_asv21()
-    # create_feature_box_plot()
+    downstream_performance(
+        'neural')  # calculate_table_asv21_sig_metric()   # plot_split(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, RANDOM_SPLIT_CSV, 'asv19_random_10_split', ASV19_OUTPUT_PATH_RANDOM_SPLIT)  # plot_split(SPEAKER_SPLIT_MODEL_CONFIG, SPEAKER_SPLIT_MODEL_PATH, SPEAKER_SPLIT_CSV, 'asv19_4_speaker_split_3', ASV19_OUTPUT_PATH_SPEAKER_SPLIT)  # plot_asv19_asv21()  # plot_asv21()  # create_feature_box_plot()

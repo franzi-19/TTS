@@ -248,7 +248,7 @@ def _load_model(config_path, model_path, use_cuda=True):
     print(simple_colors.red(f"Loaded model from {model_path}"))
     return model, ap
 
-def _get_files(folder_path, output_path, size, non_random=False):
+def _get_files(folder_path, output_path, size, non_random=False, filter_by_file=None):
     all_wav_files = []
     all_labels = []
     all_gender = []
@@ -285,9 +285,15 @@ def _get_files(folder_path, output_path, size, non_random=False):
 
     assert len(all_wav_files) != 0, "No audio files found"
 
+    if filter_by_file is not None:
+        with open(filter_by_file, 'r') as f:
+            load_only_these = f.read().strip().split(',')
+            mask = [x in load_only_these for x in all_wav_files]
+            wav_gender_label = [x for x in zip(all_wav_files, all_gender, all_labels) if x[0] in load_only_these]
+            all_wav_files, all_gender, all_labels = zip(*wav_gender_label)
 
     for output_file in output_files:
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     if size != None:
         if non_random:
@@ -306,7 +312,7 @@ def _create_embeddings(wav_files, output_files, ap, model, use_cuda):
     all_embedds = []
     print(f'Example for save path: {output_files[0]}')
     for idx, wav_file in enumerate(tqdm(wav_files)):
-        if not os.path.exists(output_files[idx]):
+        if True or not os.path.exists(output_files[idx]):
             mel_spec = ap.melspectrogram(ap.load_wav(wav_file, sr=ap.sample_rate)).T
             mel_spec = torch.FloatTensor(mel_spec[None, :, :])
             if use_cuda:
