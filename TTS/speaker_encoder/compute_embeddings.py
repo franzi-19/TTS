@@ -6,6 +6,7 @@ import statistics
 import csv
 
 import numpy as np
+import simple_colors
 import torch
 import TTS.speaker_encoder.attack_signatures as attack_signatures
 import TTS.speaker_encoder.create_plots as create_plots
@@ -239,10 +240,12 @@ def _load_model(config_path, model_path, use_cuda=True):
     ap = AudioProcessor(**c['audio'])
     model = SpeakerEncoder(**c.model)
     model.load_state_dict(torch.load(model_path)['model'])
+    model.cuda()
     model.eval()
     if use_cuda:
         model.cuda()
 
+    print(simple_colors.red(f"Loaded model from {model_path}"))
     return model, ap
 
 def _get_files(folder_path, output_path, size, non_random=False):
@@ -289,12 +292,13 @@ def _get_files(folder_path, output_path, size, non_random=False):
     if size != None:
         if non_random:
             random.seed(42)
-            all_wav_files = sorted(all_wav_files)
         idx = random.sample(range(len(all_wav_files)), size)
         all_wav_files = list(np.array(all_wav_files)[idx])
         output_files = list(np.array(output_files)[idx])
-        if all_gender != []: all_gender = list(np.array(all_gender)[idx])
-        if all_labels != []: all_labels = list(np.array(all_labels)[idx])
+        if all_gender != []:
+            all_gender = list(np.array(all_gender)[idx])
+        if all_labels != []:
+            all_labels = list(np.array(all_labels)[idx])
 
     return all_wav_files, output_files, all_labels, all_gender
 

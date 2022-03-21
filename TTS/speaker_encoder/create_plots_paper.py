@@ -2,10 +2,12 @@ import csv
 import os
 import pickle
 
+import umap
 import numpy
 import numpy as np
 import pandas as pd
 import sklearn
+from matplotlib import pyplot as plt
 from sklearn.impute import SimpleImputer
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -15,7 +17,7 @@ import TTS.speaker_encoder.compute_embeddings as ce
 import TTS.speaker_encoder.create_plots as create_plots
 from tqdm import tqdm
 
-SIZE = 10000 # = None to use all wav files
+SIZE = 1000 # = None to use all wav files
 
 model = 'own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/'
 random_split_model = 'own_lstm_asvspoof/asv19_random_10_percent-January-31-2022_01+21PM-debug/'
@@ -52,12 +54,13 @@ ASV21_OUTPUT_PATH_MODEL = base_embedding_path + model + asv21_name
 USE_CUDA = True
 PLOT_PATH = '/home/franzi/masterarbeit/TTS/TTS/speaker_encoder/plots_paper/'
 
-SIG_CACHE = '/opt/mueller/cache_franzi'
+SIG_CACHE = '/opt/mueller/cache_franzi/rand10percent'
 os.makedirs(SIG_CACHE, exist_ok=True)
+
 
 # 4.3
 def plot_asv19_attack_signatures():
-    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE, non_random=True)
+    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
     all_signature_names.append('gender')
@@ -68,25 +71,79 @@ def plot_asv19_attack_signatures():
     for name in tqdm(all_signature_names):
         sig_function = attack_signatures.get_signature_by_name(name)
         embed = []
-        for idx, wav in enumerate(tqdm(asv19_wav_files)):
-            cache_of_file = os.path.join(SIG_CACHE, f"{os.path.basename(wav)}.{name}")
-            # CACHING
-            if not os.path.exists(cache_of_file):
-                if name == 'gender':
-                    new_emb = gender[idx]
-                else:
-                    new_emb = sig_function(wav)
-                with open(cache_of_file, 'wb') as handle:
-                    pickle.dump(new_emb, handle)
+        for idx, wav in enumerate(asv19_wav_files):
+            if name == 'gender':
+                embed.append(gender[idx])
             else:
-                with open(cache_of_file, 'rb') as handle:
-                    new_emb = pickle.load(handle)
-            embed.append(new_emb)
+                embed.append(sig_function(wav))
 
         embed = ce.normalize_points(embed)
         embeds.append(embed)
         centroid, mean_distance = _calculate_centroid_and_distance(embed, asv19_labels)
         table[name] = [centroid, mean_distance]
+
+    _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
+    create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels, filename='asv19_attack_signatures_plot.png')
+
+
+# 4.3
+def downstream_performance(which):
+    asv19_wav_files, asv19_output_files, asv19_labels, gender = ce._get_files(ASV19_PATH,
+                                                                              SIG_CACHE,
+                                                                              # ASV19_OUTPUT_PATH_MODEL,
+                                                                              SIZE,
+                                                                              non_random=True)
+
+    all_signature_names = attack_signatures.get_all_names_one_result()
+    all_signature_names.append('gender')
+    gender = ce._asssign_gender_id(gender)
+
+    if which == 'conventional':
+        embeds = []
+        for name in tqdm(all_signature_names):
+            sig_function = attack_signatures.get_signature_by_name(name)
+            embed = []
+            for idx, wav in enumerate(tqdm(asv19_wav_files)):
+                cache_of_file = os.path.join(SIG_CACHE, f"{os.path.basename(wav)}.{name}")
+                # CACHING
+                if not os.path.exists(cache_of_file):
+                    if name == 'gender':
+                        new_emb = gender[idx]
+                    else:
+                        new_emb = sig_function(wav)
+                    with open(cache_of_file, 'wb') as handle:
+                        pickle.dump(new_emb, handle)
+                else:
+                    with open(cache_of_file, 'rb') as handle:
+                        new_emb = pickle.load(handle)
+                embed.append(new_emb)
+
+            embed = ce.normalize_points(embed)
+            embeds.append(embed)
+            X = np.transpose(embeds)
+            scaler = StandardScaler()
+            imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+            X = scaler.fit_transform(X)
+            X = imp.fit_transform(X)
+    elif which == 'neural':
+        model, ap = ce._load_model(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, USE_CUDA)
+        X = ce._create_embeddings(asv19_wav_files, asv19_output_files, ap, model, USE_CUDA)
+        X = numpy.stack(X)
+        # create_plots.plot_embeddings(X, SIG_CACHE, asv19_labels, filename='emb_plot.png')
+    else:
+        raise ValueError(which)
+        exit(0)
+
+    # plot
+    label_encoder = LabelEncoder()
+    labels_int = label_encoder.fit_transform(asv19_labels)
+    ump = umap.UMAP()
+    X = ump.fit_transform(X)
+    for label in np.unique(labels_int):
+        i = np.where(labels_int == label)
+        plt.scatter(X[i, 0], X[i, 1], label=i)
+    plt.show()
+    exit(0)
 
     # _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
     # create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels,
@@ -94,21 +151,17 @@ def plot_asv19_attack_signatures():
 
     label_encoder = LabelEncoder()
     labels_int = label_encoder.fit_transform(asv19_labels)
-    scaler = StandardScaler()
-    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
-    model = MLPClassifier(hidden_layer_sizes=(50, 50, 50))
+    print(f"Found {len(set(labels_int))} labels")
+    model = MLPClassifier(hidden_layer_sizes=(50, 50, 50), max_iter=2000)
 
     train_size = 0.8
-    X = np.transpose(embeds)
-    X = scaler.fit_transform(X)
-    X = imp.fit_transform(X)
     train_X, train_y = X[:int(train_size * len(X))], labels_int[:int(train_size * len(X))]
     test_X, test_y = X[int(train_size * len(X)):], labels_int[int(train_size * len(X)):]
 
     print(f"Training model via sklearn...")
-    model.fit(train_X, train_y)
+    model.fit(train_X, train_y, )
     acc = model.score(test_X, test_y)
-    print(f"Model achieves acc {acc} via conventional embeddings")
+    print(f"Model achieves acc {acc} via {which} embeddings")
 
 
 # mdcc/variance
@@ -248,7 +301,7 @@ def create_feature_box_plot(): # 3 hours
 
 
 if __name__ == '__main__':
-    plot_asv19_attack_signatures()
+    downstream_performance('neural')
     # calculate_table_asv21_sig_metric() 
     # plot_split(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, RANDOM_SPLIT_CSV, 'asv19_random_10_split', ASV19_OUTPUT_PATH_RANDOM_SPLIT)
     # plot_split(SPEAKER_SPLIT_MODEL_CONFIG, SPEAKER_SPLIT_MODEL_PATH, SPEAKER_SPLIT_CSV, 'asv19_4_speaker_split_3', ASV19_OUTPUT_PATH_SPEAKER_SPLIT)
