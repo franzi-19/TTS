@@ -17,7 +17,7 @@ import TTS.speaker_encoder.compute_embeddings as ce
 import TTS.speaker_encoder.create_plots as create_plots
 from tqdm import tqdm
 
-SIZE = 1000  # = None to use all wav files
+SIZE = 10000 # = None to use all wav files
 
 model = 'own_lstm_asvspoof/lstm_trim_silence-November-12-2021_02+43PM-debug/'
 random_split_model = 'own_lstm_asvspoof/asv19_random_10_percent-January-31-2022_01+21PM-debug/'
@@ -129,7 +129,9 @@ def downstream_performance(which):
             X = imp.fit_transform(X)
     elif which == 'neural':
         model, ap = ce._load_model(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, USE_CUDA)
-        X = ce._create_embeddings(asv19_wav_files, asv19_output_files, ap, model, USE_CUDA)
+        # there is a but with caching, for me; it jumbles the embeddings...
+        X = ce._create_embeddings(asv19_wav_files, asv19_output_files, ap, model,
+                                  USE_CUDA, skip_cache=True)
         X = numpy.stack(X)  # create_plots.plot_embeddings(X, SIG_CACHE, asv19_labels, filename='emb_plot.png')
     else:
         raise ValueError(which)
@@ -313,5 +315,6 @@ def create_feature_box_plot():  # 3 hours
 
 
 if __name__ == '__main__':
-    downstream_performance(
-        'neural')  # calculate_table_asv21_sig_metric()   # plot_split(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, RANDOM_SPLIT_CSV, 'asv19_random_10_split', ASV19_OUTPUT_PATH_RANDOM_SPLIT)  # plot_split(SPEAKER_SPLIT_MODEL_CONFIG, SPEAKER_SPLIT_MODEL_PATH, SPEAKER_SPLIT_CSV, 'asv19_4_speaker_split_3', ASV19_OUTPUT_PATH_SPEAKER_SPLIT)  # plot_asv19_asv21()  # plot_asv21()  # create_feature_box_plot()
+    # downstream_performance('conventional') #, 'neural')  Model achieves acc 0.5695 via conventional embeddings, 10k
+    downstream_performance('neural')  # Model achieves acc 0.971 via neural embeddings, 10k
+
