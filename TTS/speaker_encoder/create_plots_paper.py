@@ -1,7 +1,15 @@
 import csv
+import os
+import pickle
 
+import numpy
 import numpy as np
 import pandas as pd
+import sklearn
+from sklearn.impute import SimpleImputer
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+
 import TTS.speaker_encoder.attack_signatures as attack_signatures
 import TTS.speaker_encoder.compute_embeddings as ce
 import TTS.speaker_encoder.create_plots as create_plots
@@ -44,10 +52,12 @@ ASV21_OUTPUT_PATH_MODEL = base_embedding_path + model + asv21_name
 USE_CUDA = True
 PLOT_PATH = '/home/franzi/masterarbeit/TTS/TTS/speaker_encoder/plots_paper/'
 
+SIG_CACHE = '/opt/mueller/cache_franzi'
+os.makedirs(SIG_CACHE, exist_ok=True)
 
 # 4.3
 def plot_asv19_attack_signatures():
-    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE)
+    asv19_wav_files, _, asv19_labels, gender = ce._get_files(ASV19_PATH, ASV19_OUTPUT_PATH_MODEL, SIZE, non_random=True)
 
     all_signature_names = attack_signatures.get_all_names_one_result()
     all_signature_names.append('gender')
@@ -58,19 +68,48 @@ def plot_asv19_attack_signatures():
     for name in tqdm(all_signature_names):
         sig_function = attack_signatures.get_signature_by_name(name)
         embed = []
-        for idx, wav in enumerate(asv19_wav_files):
-            if name == 'gender': 
-                embed.append(gender[idx])
-            else: 
-                embed.append(sig_function(wav))
-        
+        for idx, wav in enumerate(tqdm(asv19_wav_files)):
+            cache_of_file = os.path.join(SIG_CACHE, f"{os.path.basename(wav)}.{name}")
+            # CACHING
+            if not os.path.exists(cache_of_file):
+                if name == 'gender':
+                    new_emb = gender[idx]
+                else:
+                    new_emb = sig_function(wav)
+                with open(cache_of_file, 'wb') as handle:
+                    pickle.dump(new_emb, handle)
+            else:
+                with open(cache_of_file, 'rb') as handle:
+                    new_emb = pickle.load(handle)
+            embed.append(new_emb)
+
         embed = ce.normalize_points(embed)
         embeds.append(embed)
         centroid, mean_distance = _calculate_centroid_and_distance(embed, asv19_labels)
         table[name] = [centroid, mean_distance]
 
-    _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
-    create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels, filename='asv19_attack_signatures_plot.png')
+    # _table_to_latex(table, ['centroid', 'mean distance'], PLOT_PATH + 'asv19_attack_signatures_table.tex')
+    # create_plots.plot_embeddings(np.transpose(embeds), PLOT_PATH, asv19_labels,
+    # filename='asv19_attack_signatures_plot.png')
+
+    label_encoder = LabelEncoder()
+    labels_int = label_encoder.fit_transform(asv19_labels)
+    scaler = StandardScaler()
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    model = MLPClassifier(hidden_layer_sizes=(50, 50, 50))
+
+    train_size = 0.8
+    X = np.transpose(embeds)
+    X = scaler.fit_transform(X)
+    X = imp.fit_transform(X)
+    train_X, train_y = X[:int(train_size * len(X))], labels_int[:int(train_size * len(X))]
+    test_X, test_y = X[int(train_size * len(X)):], labels_int[int(train_size * len(X)):]
+
+    print(f"Training model via sklearn...")
+    model.fit(train_X, train_y)
+    acc = model.score(test_X, test_y)
+    print(f"Model achieves acc {acc} via conventional embeddings")
+
 
 # mdcc/variance
 def _calculate_centroid_and_distance(embeds, labels):
@@ -209,10 +248,10 @@ def create_feature_box_plot(): # 3 hours
 
 
 if __name__ == '__main__':
-    # plot_asv19_attack_signatures()
+    plot_asv19_attack_signatures()
     # calculate_table_asv21_sig_metric() 
     # plot_split(RANDOM_SPLIT_MODEL_CONFIG, RANDOM_SPLIT_MODEL_PATH, RANDOM_SPLIT_CSV, 'asv19_random_10_split', ASV19_OUTPUT_PATH_RANDOM_SPLIT)
     # plot_split(SPEAKER_SPLIT_MODEL_CONFIG, SPEAKER_SPLIT_MODEL_PATH, SPEAKER_SPLIT_CSV, 'asv19_4_speaker_split_3', ASV19_OUTPUT_PATH_SPEAKER_SPLIT)
     # plot_asv19_asv21()
     # plot_asv21()
-    create_feature_box_plot()
+    # create_feature_box_plot()

@@ -245,12 +245,13 @@ def _load_model(config_path, model_path, use_cuda=True):
 
     return model, ap
 
-def _get_files(folder_path, output_path, size):
+def _get_files(folder_path, output_path, size, non_random=False):
     all_wav_files = []
     all_labels = []
     all_gender = []
     if "ASVspoof2019_LA_cm_protocols" in folder_path:
         label_files = glob.glob(folder_path + '/**/*.txt', recursive=True)
+        label_files = sorted(list(label_files))
         wav_paths = ["/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_train/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_dev/", "/opt/franzi/datasets/DS/LA/ASVspoof2019_LA_eval/"]
         for label_file in label_files:
             print(f'Label file: {label_file}')
@@ -286,6 +287,9 @@ def _get_files(folder_path, output_path, size):
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     if size != None:
+        if non_random:
+            random.seed(42)
+            all_wav_files = sorted(all_wav_files)
         idx = random.sample(range(len(all_wav_files)), size)
         all_wav_files = list(np.array(all_wav_files)[idx])
         output_files = list(np.array(output_files)[idx])
